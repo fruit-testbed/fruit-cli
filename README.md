@@ -8,8 +8,11 @@ Usage: `fruit-cli <command>`
 Config file:
 - Path: `~/.fruit.json` (permission: 0600)
 - Fields
-  - User's email address
-  - API key
+  - Mandatory
+    - `email`: user's email address
+    - `api-key`: user's API key
+  - Optional
+    - `server-url`: server's URL (default: `https://fruit-testbed.org/api`)
 
 Commands:
 - `register <email-address>`
