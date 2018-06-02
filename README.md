@@ -12,6 +12,13 @@ Config file:
   - API key
 
 Commands:
+- `register <email-address>`
+  - for a new user
+    - server sends an activation link to user's email address
+    - user activates the account by clicking the link
+    - after activating the account, the server sends an API-Key to user's email address
+  - for an existing user
+    - server sends the API-Key to user's email address
 - `edit-config`: open the config file with a text editor (e.g. nano, vi)
 - `print-config`: print configuration to STDOUT
 - `list-nodes`: list nodes belong to the user
