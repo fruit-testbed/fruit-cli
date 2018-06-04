@@ -6,13 +6,14 @@ A command line app for Fruit clusters.
 Usage: `fruit-cli <command>`
 
 Config file:
-- Path: `~/.fruit.json` (permission: 0600)
+- Path: `~/.fruit-cli.json` (permission: 0600)
 - Fields
   - Mandatory
     - `email`: user's email address
     - `api-key`: user's API key
   - Optional
     - `server-url`: server's URL (default: `https://fruit-testbed.org/api`)
+    - `editor`: editor to edit the config file (default: `nano`)
 
 Commands:
 - `register <email-address>`
@@ -22,17 +23,17 @@ Commands:
     - after activating the account, the server sends an API-Key to user's email address
   - for an existing user
     - server sends the API-Key to user's email address
-- `edit-config`: open the config file with a text editor (e.g. nano, vi)
-- `print-config`: print configuration to STDOUT
-- `list-nodes`: list nodes belong to the user
-- `get-monitoring-data [node-id]`
-  - If `node-id` not given, returns all monitoring data of nodes belong to the user
-  - If `node-id` given, returns monitoring data of the node if it’s belong to the user
-- `run [--node-id <id>] [--tag <key>=<value>]* [--container-options <container-options>] <container-image> [container-command]`
-  - `<container-image>`: the container image to be run
-  - `<container-command>`: a command that will be run in the container
-  - `<container-options>`: options that will be passed to Docker
-  - If `--node-id` and `--tag` no given, run container on all nodes belong to the user
-  - If `--node-id <id>` given, run container on node whose ID is `<id>`
-  - if `--tag <key>=<value>` given, run container on nodes that has a tag `<key>` with value `<value>`
-
+- `config`
+  - no-option given, then print configuration to STDOUT
+  - option `--edit` given, open the config file with a text editor (e.g. nano, vi)
+- `node`: list nodes belong to the user
+- `monitor [--node <id>]`
+  - If `--node` not given, returns all monitoring data of nodes belong to the user
+  - If `--node <id>` given, returns monitoring data of node with ID=`<id>`,
+    if the node is belong to the user
+- `run [--node <id>] [--params <params>] [--command <command>] <name> <image>`
+  - `<name>`: container's name
+  - `<image>`: the container image to be run
+  - `<command>`: a command that will be run in the container
+  - `<params>`: parameters to be passed to Docker run
+  - If `--node <id>` given, run container on node with ID=`<id>`
