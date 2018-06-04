@@ -6,7 +6,7 @@ A command line app for Fruit clusters.
 Usage: `fruit-cli <command>`
 
 Config file:
-- Path: `~/.fruit-cli.json` (permission: 0600)
+- Path: `~/.fruit-cli` (permission: 0600)
 - Fields
   - Mandatory
     - `email`: user's email address
