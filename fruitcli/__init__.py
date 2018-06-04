@@ -68,7 +68,7 @@ def monitor():
     parser.add_argument("--node", dest="node", type=str)
     args = parser.parse_args()
 
-    url = "%s/monitor" % CONFIG["server"]
+    url = "%s/user/%s/monitor" % (CONFIG["server"], CONFIG["email"])
     if args.node is not None:
         url = "%s/%s" % (url, args.node)
     headers = {"X-API-Key": CONFIG["api-key"]}
