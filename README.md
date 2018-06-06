@@ -31,7 +31,7 @@ Commands:
   - If `--node` not given, returns all monitoring data of nodes belong to the user
   - If `--node <id>` given, returns monitoring data of node with ID=`<id>`,
     if the node is belong to the user
-- `run [--node <id>] [--params <params>] [--command <command>] <name> <image>`
+- `run-container [--node <id>] [--params <params>] [--command <command>] <name> <image>`
   - `<name>`: container's name
   - `<image>`: the container image to be run
   - `<command>`: a command that will be run in the container
