@@ -106,28 +106,80 @@ def run_container():
     data = {
         "name": args.name,
         "image": args.image,
-    }
+        }
     if args.command is not None:
         data["command"] = args.command
     if args.params is not None:
         data["parameters"] = args.params
 
     r = requests.put(url, data=json.dumps(data), headers=headers)
-    if r.status_code == 201:
-        if args.node is None:
-            print("Submitted new container '%s' on all nodes." % args.name)
-        else:
-            print("Submitted new container '%s' on node %s" % (args.name, args.node))
+    if r.status_code == 200:
+        print("Created new container '%s' on all nodes" % args.name)
+    elif r.status_code == 201:
+        print("Created new container '%s' on node %s" % (args.name, args.node))
     elif r.status_code == 202:
-        if args.node is None:
-            print("Updated container '%s' on all nodes." % args.name)
-        else:
-            print("Updated container '%s' on node %s" % (args.name, args.node))
+        print("Updated container '%s' on node %s" % (args.name, args.node))
+    elif r.status_code == 206:
+        print("Partial success on creating the containers")
+        print(r.text)
     else:
-        print("Submitting container '%s' failed (status code: %d)" % (args.name, r.status_code))
+        print("Created container '%s' failed (status code: %d)" % (args.name, r.status_code))
         print(r.text)
         sys.exit(12)
 
+def list_container():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--node", dest="node", type=str,
+        help="""Target node which the container will be deployed.
+                If not specified then the container will be deployed
+                on all nodes owned by the user.""")
+    args = parser.parse_args()
+
+    url = "%s/user/%s/container" % (CONFIG["server"], CONFIG["email"])
+    if args.node is not None:
+        url = "%s/%s" % (url, args.node)
+    headers = {
+        "X-API-Key": CONFIG["api-key"],
+        }
+    r = requests.get(url, headers=headers)
+    if r.status_code == 200:
+        print(r.text)
+    else:
+        print("Failed listing container(s) (status code: %d)" % r.status_code)
+        print(r.text)
+        sys.exit(13)
+
+def stop_container():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--node", dest="node", type=str,
+        help="""Target node which the container will be deployed.
+                If not specified then the container will be deployed
+                on all nodes owned by the user.""")
+    parser.add_argument("name", type=str,
+        help="Container's name")    
+    args = parser.parse_args()
+
+    url = "%s/user/%s/container" % (CONFIG["server"], CONFIG["email"])
+    if args.node is not None:
+        url = "%s/%s" % (url, args.node)
+    url = "%s/%s" % (url, args.name)
+    headers = {
+        "X-API-Key": CONFIG["api-key"],
+        }
+    r = requests.delete(url, headers=headers)
+    if r.status_code == 204:
+        if args.node is None:
+            print("Stopped container '%s' on all nodes." % args.name)
+        else:
+            print("Stopped container '%s' on node %s" % (args.name, args.node))
+    elif r.status_code == 206:
+        print("Partial success on stopping the containers")
+        print(r.text)
+    else:
+        print("Failed stopping container '%s' (status code: %d)" % (args.name, r.status_code))
+        print(r.text)
+        sys.exit(14)
+    
 def print_usage(app_name):
         print("""Usage: %s COMMAND
 
@@ -137,8 +189,8 @@ Management Commands:
   node             List of nodes
   monitor          Print monitoring data
   run-container    Run a container on node(s)
-  list-container   List container
-  stop-container   Stop container
+  list-container   List container(s)
+  stop-container   Stop a container
   
 """ % app_name)
     
@@ -162,6 +214,10 @@ def main():
         monitor()
     elif sys.argv[0] == "run-container":
         run_container()
+    elif sys.argv[0] == "list-container" or sys.argv[0] == "list-containers":
+        list_container()
+    elif sys.argv[0] == "stop-container":
+        stop_container()
     else:
         print("Invalid command:", sys.argv[0], end="\n\n")
         print_usage(app_name)
