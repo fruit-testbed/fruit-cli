@@ -58,7 +58,7 @@ def config():
     sys.stdout.flush()
 
 
-def nodes():
+def list_node():
     url = "%s/user/%s/node" % (CONFIG["server"], CONFIG["email"])
     headers = {"X-API-Key": CONFIG["api-key"]}
 
@@ -203,7 +203,7 @@ def print_usage(app_name):
 Management Commands:
   register         Register a new user
   config           Print/edit fruit-cli configuration file
-  node             List of nodes
+  list-node             List of nodes
   monitor          Print monitoring data
   run-container    Run a container on node(s)
   list-container   List container(s)
@@ -226,8 +226,8 @@ def main():
 
     if sys.argv[0] == "config":
         config()
-    elif sys.argv[0] == "node":
-        nodes()
+    elif sys.argv[0] == "list-node":
+        list_node()
     elif sys.argv[0] == "monitor":
         monitor()
     elif sys.argv[0] == "run-container":

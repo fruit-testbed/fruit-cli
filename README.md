@@ -26,7 +26,7 @@ Commands:
 - `config`
   - no-option given, then print configuration to STDOUT
   - option `--edit` given, open the config file with a text editor (e.g. nano, vi)
-- `node`: list nodes belong to the user
+- `list-node`: list nodes belong to the user
 - `monitor [--node <id>]`
   - If `--node` not given, returns all monitoring data of nodes belong to the user
   - If `--node <id>` given, returns monitoring data of node with ID=`<id>`,
