@@ -108,9 +108,15 @@ def run_container():
         "image": args.image,
         }
     if args.command is not None:
-        data["command"] = args.command
+        try:
+            data["command"] = json.loads(args.command)
+        except:
+            data["command"] = [args.command]
     if args.params is not None:
-        data["parameters"] = args.params
+        try:
+            data["parameters"] = json.loads(args.params)
+        except:
+            data["parameters"] = [args.params]
 
     r = requests.put(url, data=json.dumps(data), headers=headers)
     if r.status_code == 200:
