@@ -47,3 +47,7 @@ Commands:
   - if `--node` not given, return a list of containers on all nodes owned by the user
   - if `--node <id>` given, return a list of containers on node with ID=`<id>`
     and owned by the user
+- `rm-container [--node <id>] <name>`
+  - if `--node` not given, remove container `<name>` from all nodes owned by the user
+  - if `--node <id>` given, remove container `<name>` from node with ID=`<id>` and owned
+    by the user
