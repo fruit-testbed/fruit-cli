@@ -37,3 +37,7 @@ Commands:
   - `<command>`: a command that will be run in the container
   - `<params>`: parameters to be passed to Docker run
   - If `--node <id>` given, run container on node with ID=`<id>`
+- `list-container [--node <id>]`
+  - if `--node` not given, return a list of containers on all nodes owned by the user
+  - if `--node <id>` given, return a list of containers on node with ID=`<id>`
+    and owned by the user
