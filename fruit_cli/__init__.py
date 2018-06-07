@@ -203,7 +203,7 @@ def print_usage(app_name):
 Management Commands:
   register         Register a new user
   config           Print/edit fruit-cli configuration file
-  list-node             List of nodes
+  list-node        List of nodes
   monitor          Print monitoring data
   run-container    Run a container on node(s)
   list-container   List container(s)
