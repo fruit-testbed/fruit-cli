@@ -201,7 +201,6 @@ def print_usage(app_name):
         print("""Usage: %s COMMAND
 
 Management Commands:
-  register         Register a new user
   config           Print/edit fruit-cli configuration file
   list-node        List of nodes
   monitor          Print monitoring data
