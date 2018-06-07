@@ -1,5 +1,4 @@
 from __future__ import print_function
-
 import argparse
 import sys
 import requests
@@ -15,6 +14,7 @@ CONFIG = {
     "editor": "nano",
     }
 
+
 def load_config():
     if path.exists(CONFIG_FILE):
         with open(CONFIG_FILE) as f:
@@ -24,6 +24,7 @@ def load_config():
             return
     print("Config file %s does not exist." % CONFIG_FILE)
     sys.exit(2)
+
 
 def register():
     parser = argparse.ArgumentParser()
@@ -39,6 +40,7 @@ def register():
     print("""Registration request has been submitted.
 Please check your mailbox (%s) for further instructions.""" % args.email)
 
+
 def config():
     parser = argparse.ArgumentParser()
     parser.add_argument("--edit", action="store_const", const=True, default=False,
@@ -52,6 +54,7 @@ def config():
     yaml.safe_dump(CONFIG, stream=sys.stdout, default_flow_style=False)
     sys.stdout.flush()
 
+
 def nodes():
     url = "%s/user/%s/node" % (CONFIG["server"], CONFIG["email"])
     headers = {"X-API-Key": CONFIG["api-key"]}
@@ -62,6 +65,7 @@ def nodes():
     else:
         print("Listing nodes failed (status code: %d)" % r.status_code)
         sys.exit(10)
+
 
 def monitor():
     parser = argparse.ArgumentParser()
@@ -79,6 +83,7 @@ def monitor():
     else:
         print("Listing nodes failed (status code: %d)" % r.status_code)
         sys.exit(11)
+
 
 def run_container():
     parser = argparse.ArgumentParser()
@@ -133,6 +138,7 @@ def run_container():
         print(r.text)
         sys.exit(12)
 
+
 def list_container():
     parser = argparse.ArgumentParser()
     parser.add_argument("--node", dest="node", type=str,
@@ -154,6 +160,7 @@ def list_container():
         print("Failed listing container(s) (status code: %d)" % r.status_code)
         print(r.text)
         sys.exit(13)
+
 
 def rm_container():
     parser = argparse.ArgumentParser()
@@ -185,7 +192,8 @@ def rm_container():
         print("Failed stopping container '%s' (status code: %d)" % (args.name, r.status_code))
         print(r.text)
         sys.exit(14)
-    
+
+
 def print_usage(app_name):
         print("""Usage: %s COMMAND
 
@@ -199,7 +207,8 @@ Management Commands:
   rm-container     Remove a container
   
 """ % app_name)
-    
+
+
 def main():
     app_name = sys.argv[0]
     if len(sys.argv) < 2:
