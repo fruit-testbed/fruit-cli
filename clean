@@ -1,0 +1,5 @@
+#!/bin/sh
+
+find . -type f -name '*.pyc' -exec rm {} +
+find . -type d -name '__pycache__' -exec rm -rf {} +
+rm -rf fruit_cli-*.whl fruit_cli.egg-info build dist
