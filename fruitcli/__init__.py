@@ -155,7 +155,7 @@ def list_container():
         print(r.text)
         sys.exit(13)
 
-def stop_container():
+def rm_container():
     parser = argparse.ArgumentParser()
     parser.add_argument("--node", dest="node", type=str,
         help="""Target node which the container will be deployed.
@@ -196,7 +196,7 @@ Management Commands:
   monitor          Print monitoring data
   run-container    Run a container on node(s)
   list-container   List container(s)
-  stop-container   Stop a container
+  rm-container     Remove a container
   
 """ % app_name)
     
@@ -222,8 +222,8 @@ def main():
         run_container()
     elif sys.argv[0] == "list-container" or sys.argv[0] == "list-containers":
         list_container()
-    elif sys.argv[0] == "stop-container":
-        stop_container()
+    elif sys.argv[0] == "rm-container":
+        rm_container()
     else:
         print("Invalid command:", sys.argv[0], end="\n\n")
         print_usage(app_name)
