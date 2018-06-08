@@ -5,7 +5,7 @@ except ImportError:
 
 setup(
     name="fruit-cli",
-    version="0.1.0",
+    version="0.1.1",
     author="Herry",
     author_email="herry.herry@glasgow.ac.uk",
     license="Creative Commons Attribution-ShareAlike 4.0 International Public",
@@ -17,6 +17,9 @@ setup(
         "Programming Language :: Python :: 2",
         "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.3",
+        "Programming Language :: Python :: 3.4",
+        "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
     ],
     keywords="fruit-cli",
@@ -24,7 +27,7 @@ setup(
     packages=["fruit", "fruit/cli"],
     url="https://github.com/fruit-testbed/fruit-cli/",
     description="Command-line application of Fruit cluster management",
-    install_requires=["requests"],
+    install_requires=["requests", "PyYAML"],
     python_requires=">=2.7, <4",
     scripts=["bin/fruit-cli"],
 )
