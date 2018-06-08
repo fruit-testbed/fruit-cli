@@ -53,8 +53,8 @@ Please check your mailbox (%s) for further instructions.""" % args.email)
 
 def config():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--edit", action="store_const", const=True, default=False,
-        help="Edit config file")
+    parser.add_argument("--edit", action="store_const", const=True,
+        default=False, help="Edit config file")
     args = parser.parse_args()
 
     if args.edit:
@@ -144,7 +144,8 @@ def run_container():
         print("Partial success on creating the containers")
         print(r.text)
     else:
-        print("Created container '%s' failed (status code: %d)" % (args.name, r.status_code))
+        print("Created container '%s' failed (status code: %d)" % \
+                (args.name, r.status_code))
         print(r.text)
         sys.exit(12)
 
@@ -199,7 +200,8 @@ def rm_container():
         print("Partial success on stopping the containers")
         print(r.text)
     else:
-        print("Failed stopping container '%s' (status code: %d)" % (args.name, r.status_code))
+        print("Failed stopping container '%s' (status code: %d)" % \
+                (args.name, r.status_code))
         print(r.text)
         sys.exit(14)
 
@@ -214,7 +216,7 @@ Management Commands:
   run-container    Run a container on node(s)
   list-container   List container(s)
   rm-container     Remove a container
-  
+
 """ % app_name)
 
 
