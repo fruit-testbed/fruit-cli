@@ -21,7 +21,7 @@ setup(
     ],
     keywords="fruit-cli",
     platforms="any",
-    packages=["fruit_cli"],
+    packages=["fruit", "fruit/cli"],
     url="https://github.com/fruit-testbed/fruit-cli/",
     description="Command-line application of Fruit cluster management",
     install_requires=["requests"],

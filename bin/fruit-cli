@@ -1,4 +1,4 @@
 #!/usr/bin/env python
 
-import fruit_cli
-fruit_cli.main()
+import fruit.cli
+fruit.cli.main()
