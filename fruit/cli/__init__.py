@@ -9,6 +9,7 @@ from os import path
 import yaml
 import subprocess
 import json
+import re
 
 
 CONFIG_FILE = path.join(path.expanduser("~"), ".fruit-cli")
@@ -16,6 +17,12 @@ CONFIG = {
     "server": "https://fruit-testbed.org/api",
     "editor": "nano",
     }
+
+
+def container_name_type(name, pattern=re.compile(r"^[a-zA-Z0-9_\-]+$")):
+    if not isinstance(name, str) or not pattern.match(name):
+        raise argparse.ArgumentTypeError
+    return name
 
 
 def load_config():
@@ -98,8 +105,8 @@ def run_container():
         help="Parameters to be passed to Docker run")
     parser.add_argument("--command", dest="command", type=str,
         help="Command that will be run in the container")
-    parser.add_argument("name", type=str,
-        help="Container's name")    
+    parser.add_argument("name", type=container_name_type,
+        help="Container's name in pattern [a-zA-Z0-9\\-_]+")
     parser.add_argument("image", type=str,
         help="Container's image")
     args = parser.parse_args()
@@ -171,8 +178,8 @@ def rm_container():
         help="""Target node which the container will be deployed.
                 If not specified then the container will be deployed
                 on all nodes owned by the user.""")
-    parser.add_argument("name", type=str,
-        help="Container's name")    
+    parser.add_argument("name", type=container_name_type,
+        help="Container's name in pattern [a-zA-Z0-9\\-_]+")
     args = parser.parse_args()
 
     url = "%s/user/%s/container" % (CONFIG["server"], CONFIG["email"])
