@@ -33,7 +33,18 @@ def load_config():
                 CONFIG[key] = cfg[key]
             return
     print("Config file %s does not exist." % CONFIG_FILE)
-    sys.exit(2)
+    try:
+        input("Press Enter to create one...")
+    except:
+        pass
+    cfg = {
+        "email": "<your-email-address>",
+        "api-key": "<your-api-key>",
+    }
+    with open(CONFIG_FILE, "w") as f:
+        yaml.safe_dump(cfg, stream=f, default_flow_style=False)
+    subprocess.call(["nano", CONFIG_FILE])
+    sys.exit(0)
 
 
 def register():
@@ -60,7 +71,7 @@ def config():
     if args.edit:
         subprocess.call([CONFIG["editor"], CONFIG_FILE])
         load_config()
-    print("--- Your configs ---")
+    print("--- Your configs in %s ---" % CONFIG_FILE)
     yaml.safe_dump(CONFIG, stream=sys.stdout, default_flow_style=False)
     sys.stdout.flush()
 
