@@ -1,53 +1,147 @@
 fruit-cli
 =========
 
-A command line app for Fruit clusters.
-
-Usage: `fruit-cli <command>`
-
-Config file:
-- Path: `~/.fruit-cli` (permission: 0600)
-- Fields
-  - Mandatory
-    - `email`: user's email address
-    - `api-key`: user's API key
-  - Optional
-    - `server-url`: server's URL (default: `https://fruit-testbed.org/api`)
-    - `editor`: editor to edit the config file (default: `nano`)
+A command-line application to manage Fruit federated cluster.
 
 
-Commands:
-- `register <email-address>`
-  - if `<email-address>` has not been registered (a new user), then:
-    - the server sends an activation link to user's email address
-    - the user activates the account by clicking the link
-    - after activating the account, the server sends an API-Key to user's email address
-  - if `<email-address>` has been registered, then:
-    - the server sends the API-Key to user's email address
-- `config [--edit]`
-  - if no option given, then print configuration to the standard output
-  - if option `--edit` given, open the config file with a text editor (e.g. nano, vi)
-- `list-node`: list nodes belong to the user
-- `monitor [--node <id>]`
-  - if no option given, return all monitoring data of nodes owned by the user
-  - if `--node <id>` given, return monitoring data of node with ID=`<id>` and owned by
-    the user
-- `run-container [--node <id>] [--params <params>] [--command <command>] <name> <image>`
-  - if option `--node` not given, run a container on all nodes owned by the user
-  - if option `--node <id>` given, run a container on node with ID=`<id>` and owned by
-    the user
-  - the arguments are:
-    - `<name>`: container's name (containers with different name may use the same image)
-    - `<image>`: the container's image (Docker is responsible to download the image)
-    - `<command>`: a command that will be run in the container in the form of JSON array of 
-                   strings
-    - `<params>`: parameters to be passed to Docker run in the form of JSON array of strings
-                  e.g. `-p 80:80` (publish container's port 80 to host's port 80)
-- `list-container [--node <id>]`
-  - if `--node` not given, return a list of containers on all nodes owned by the user
-  - if `--node <id>` given, return a list of containers on node with ID=`<id>`
-    and owned by the user
-- `rm-container [--node <id>] <name>`
-  - if `--node` not given, remove container `<name>` from all nodes owned by the user
-  - if `--node <id>` given, remove container `<name>` from node with ID=`<id>` and owned
-    by the user
+## To Install
+
+Requirements:
+
+- Python (>= 2.7 or >= 3.3)
+- Pip
+
+**fruit-cli** can be installed using **pip** simply by invoking:
+
+```sh
+pip install fruit-cli
+```
+
+To upgrade to newer version, you can invoke:
+
+```shell
+pip install -U fruit-cli
+```
+
+
+## Config
+
+Config file of **fruit-cli** is at path `~/.fruit-cli`. It is a **YAML** file which holds
+the login information to access Fruit Management APIs. It has two mandatory fields:
+
+- `email`, the user's  email address (e.g. `foo@bar.com`).
+- `api-key`, a 64-character string assigned to each user. You have to register yourself
+  to get this key.
+
+There two optional fields:
+
+* `editor`, the editor application used to edit the config file (default: `nano`).
+* `server-url`, the management server's endpoint.
+
+
+## Commands
+
+There are six commands: **config**, **list-node**, **monitor**, **list-container**,
+**run-container**, and **rm-container**.
+
+
+### config
+
+`fruit-cli config [--edit]`
+
+**config** prints **fruit-cli**'s configuration to the standard output.
+
+If option `--edit` is given, then it opens the config file (`~/.fruit-cli`) with a text editor.
+
+
+### list-node
+
+`fruit-cli list-node`
+
+**list-node** prints a list of nodes (in JSON format) that belong to the user.
+
+
+### monitor
+
+`fruit-cli monitor [--node <id>]`
+
+**monitor** prints monitoring data of all nodes belong to the user.
+
+If option `--node <id>` is given, then it prints monitoring data of node with ID=`<id>`,
+as long as the node belongs to the user.
+
+
+### list-container
+
+`fruit-cli list-container [--node <id>]`
+
+**list-container** prints a list of containers that have been submitted to the management
+server, that should be deployed on all nodes that belong to the user.
+
+If option `--node <id>` is given, then it prints a list of containers of node with
+ID=`<id>`, as long as the node belongs to the user.
+
+
+### run-container
+
+`fruit-cli run-container [--node <id>] [--params <params>] [--command <command>] <name> <image>`
+
+**run-container** submits a container specification to the management server,
+that should be deployed on all nodes that belong to the user.
+
+If option `--node <id>` is given, then the container will only be deployed on node
+with ID=`<id>`, as long as the node belongs to the user.
+
+Arguments are:
+- `<name>`, container's name.
+- `<image>`, the container's image.
+
+Other options are:
+- `--params <params>`, parameters (in JSON array format) to be passed to `docker run` command.
+  See [here](https://docs.docker.com/engine/reference/run/) to learn more about all available
+  options.
+- `--command <command>`, commands (in JSON array format) that will be run inside the container.
+
+
+#### Example: run a container on a specific node
+
+```shell
+fruit-cli run-container \
+    --node pi123 --params '["-p", "8080:80"]' \
+    nginx herry13/nginx:fruit
+```
+
+The above will run a container with name `nginx` and image `herry13/nginx:fruit`, on node `pi123`,
+where container's port `80` is mapped to host's port `8080` so that the Nginx service can be
+accessed from external.
+
+
+#### Example: run a container on all nodes
+
+```shell
+fruit-cli run-container --params '["-p", "8080:80"]' \
+    nginx herry13/nginx:fruit
+```
+
+The above will run a container with name `nginx` and image `herry13/nginx:fruit`, on all nodes
+that belong to the user, where container's port `80` is mapped to host's port `8080` so that
+the Nginx service can be accessed from external.
+
+
+### rm-container
+
+`fruit-cli rm-container [--node <id>] <name>`
+
+**rm-container** removes container with name=`<name>` from all nodes that belong to the user.
+For example:
+
+```shell
+fruit-cli rm-container nginx
+```
+
+If option `--node <id>` is given, then the container will only be removed from node with
+ID=`<id>`, as long as the node belongs to the user. For example:
+
+```shell
+fruit-cli rm-container --node pi123 nginx
+```
