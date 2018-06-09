@@ -23,6 +23,15 @@ To upgrade to newer version, you can invoke:
 pip install -U fruit-cli
 ```
 
+To install from source code:
+
+```shell
+git clone https://github.com/fruit-testbed/fruit-cli
+cd fruit-cli
+pip install requests PyYAML
+python setup.py install
+```
+
 
 ## Config
 
@@ -102,6 +111,9 @@ Other options are:
   options.
 - `--command <command>`, commands (in JSON array format) that will be run inside the container.
 
+> Note that the deployment process is performed asynchronously. It commonly takes 5-10
+> minutes until the container has been started on target node by **fruit-agent**.
+
 
 #### Example: run a container on a specific node
 
@@ -145,3 +157,6 @@ ID=`<id>`, as long as the node belongs to the user. For example:
 ```shell
 fruit-cli rm-container --node pi123 nginx
 ```
+
+> Note that the deployment process is performed asynchronously. It commonly takes 5-10
+> minutes until the container has been removed from target node by **fruit-agent**.
