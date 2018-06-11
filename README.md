@@ -45,7 +45,15 @@ the login information to access Fruit Management APIs. It has two mandatory fiel
 There two optional fields:
 
 * `editor`, the editor application used to edit the config file (default: `nano`).
-* `server-url`, the management server's endpoint.
+* `server-url`, the management server's endpoint (default: `https://fruit-testbed.org/api`).
+
+Example:
+
+```yaml
+email: foo@bar.com
+api-key: 0123456789012345678901234567890123456789012345678901234567890123
+editor: vi
+```
 
 
 ## Commands
