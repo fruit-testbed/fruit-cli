@@ -77,7 +77,10 @@ def config():
 
 
 def list_node():
-    url = "%s/user/%s/node" % (CONFIG["server"], CONFIG["email"])
+    if CONFIG["email"] == "admin@fruit-testbed.org":
+        url = "%s/node" % CONFIG["server"]
+    else:
+        url = "%s/user/%s/node" % (CONFIG["server"], CONFIG["email"])
     headers = {"X-API-Key": CONFIG["api-key"]}
 
     r = requests.get(url, headers=headers)
