@@ -151,6 +151,9 @@ that belong to the user, where container's port `80` is mapped to host's port `8
 the Nginx service can be accessed from external.
 
 
+> The examples are using image `herry13/nginx:fruit` available in [Docker hub](https://hub.docker.com/r/herry13/nginx/).
+
+
 ### rm-container
 
 `fruit-cli rm-container [--node <id>] <name>`
