@@ -104,7 +104,10 @@ ID=`<id>`, as long as the node belongs to the user.
 `fruit-cli run-container [--node <id>] [--params <params>] [--command <command>] <name> <image>`
 
 **run-container** submits a container specification to the management server,
-that should be deployed on all nodes that belong to the user.
+that should be deployed on all nodes that belong to the user. When the container
+with the same name is already exist, then it will be stopped and re-deployed again
+if there is a difference on the image, parameters, or command.
+Otherwise, no operation will be performed.
 
 If option `--node <id>` is given, then the container will only be deployed on node
 with ID=`<id>`, as long as the node belongs to the user.
