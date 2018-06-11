@@ -192,11 +192,59 @@ def list_container():
         }
     r = requests.get(url, headers=headers)
     if r.status_code == 200:
-        print(r.text)
+        data = __inject_container_state(r.json(), args)
+        print(json.dumps(data, indent=2, sort_keys=True))
     else:
         print("Failed listing container(s) (status code: %d)" % r.status_code)
         print(r.text)
         sys.exit(13)
+
+
+def __inject_container_state(data, args):
+    if CONFIG["email"] == "admin@fruit-testbed.org":
+        url = "%s/monitor" % CONFIG["server"]
+    else:
+        url = "%s/user/%s/monitor" % (CONFIG["server"], CONFIG["email"])
+
+    headers = {"X-API-Key": CONFIG["api-key"]}
+    if args.node is not None:
+        url = "%s/%s" % (url, args.node)
+    r = requests.get(url, headers=headers)
+    if r.status_code != 200:
+        print("Warning: failed getting container(s)'s state", file=sys.stderr)
+        print(r.text, file=sys.stderr)
+    elif args.node is not None:
+        # single node
+        monitor = r.json()
+        if "docker" in monitor and "containers" in monitor["docker"]:
+            __inject_node_container_state(data, monitor["docker"]["containers"])
+    else:
+        # multiple nodes
+        monitor = r.json()
+        for node in monitor:
+            if node not in data:
+                continue
+            node_monitor = monitor[node]
+            if "docker" in node_monitor and "containers" in node_monitor["docker"]:
+                __inject_node_container_state(data[node],
+                        node_monitor["docker"]["containers"])
+    return data
+
+
+def __inject_node_container_state(data, containers):
+    if isinstance(containers, list):
+        for container in containers:
+            for name in container["Names"]:
+                name = name.lstrip("/")
+                name, ext = path.splitext(name)
+                if ext == ".fruit":
+                    if name in data:
+                        data[name]["state"] = container["State"]
+                        data[name]["status"] = container["Status"]
+                    break
+    for name in data:
+        if "state" not in data[name]:
+            data[name]["state"] = "absent"
 
 
 def rm_container():
