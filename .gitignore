@@ -11,3 +11,6 @@ __pycache__
 
 # VIM swap file
 .*.swp
+
+# Visual Studio Code
+/.vscode
