@@ -96,7 +96,11 @@ def monitor():
     parser.add_argument("--node", dest="node", type=str)
     args = parser.parse_args()
 
-    url = "%s/user/%s/monitor" % (CONFIG["server"], CONFIG["email"])
+    if CONFIG["email"] == "admin@fruit-testbed.org":
+        url = "%s/monitor" % CONFIG["server"]
+    else:
+        url = "%s/user/%s/monitor" % (CONFIG["server"], CONFIG["email"])
+
     if args.node is not None:
         url = "%s/%s" % (url, args.node)
     headers = {"X-API-Key": CONFIG["api-key"]}
@@ -125,7 +129,11 @@ def run_container():
         help="Container's image")
     args = parser.parse_args()
 
-    url = "%s/user/%s/container" % (CONFIG["server"], CONFIG["email"])
+    if CONFIG["email"] == "admin@fruit-testbed.org":
+        url = "%s/container" % CONFIG["server"]
+    else:
+        url = "%s/user/%s/container" % (CONFIG["server"], CONFIG["email"])
+
     if args.node is not None:
         url = "%s/%s" % (url, args.node)
     headers = {
@@ -172,7 +180,11 @@ def list_container():
                 on all nodes owned by the user.""")
     args = parser.parse_args()
 
-    url = "%s/user/%s/container" % (CONFIG["server"], CONFIG["email"])
+    if CONFIG["email"] == "admin@fruit-testbed.org":
+        url = "%s/container" % CONFIG["server"]
+    else:
+        url = "%s/user/%s/container" % (CONFIG["server"], CONFIG["email"])
+
     if args.node is not None:
         url = "%s/%s" % (url, args.node)
     headers = {
@@ -197,7 +209,11 @@ def rm_container():
         help="Container's name in pattern [a-zA-Z0-9\\-_]+")
     args = parser.parse_args()
 
-    url = "%s/user/%s/container" % (CONFIG["server"], CONFIG["email"])
+    if CONFIG["email"] == "admin@fruit-testbed.org":
+        url = "%s/container" % CONFIG["server"]
+    else:
+        url = "%s/user/%s/container" % (CONFIG["server"], CONFIG["email"])
+
     if args.node is not None:
         url = "%s/%s" % (url, args.node)
     url = "%s/%s" % (url, args.name)
