@@ -126,6 +126,8 @@ Other options are:
   onto the container's `/bar`.
   For security reason, the host volume is always relative to `/data/.container-data`.
 - `--command <command>`, commands (in JSON array format) that will be run inside the container.
+- `-k <list>`, load kernel modules before starting the container.
+- `-d <list>`, load device tree blob before starting the container.
 
 > Note that the deployment process is performed asynchronously. It commonly takes 5-10
 > minutes until the container has been started on target node by **fruit-agent**.

@@ -125,6 +125,10 @@ def run_container():
         help="Mount bind one or more host's volumes to the container")
     parser.add_argument("--command", dest="command", type=str,
         help="Command that will be run in the container")
+    parser.add_argument("-k", dest="kernel_modules", type=str,
+        help="Kernel modules to be loaded before starting the container")
+    parser.add_argument("-d", dest="device_tree", type=str,
+        help="Device tree to be loaded before starting the container")
     parser.add_argument("name", type=container_name_type,
         help="Container's name in pattern [a-zA-Z0-9\\-_]+")
     parser.add_argument("image", type=str,
@@ -152,15 +156,25 @@ def run_container():
         except:
             data["command"] = [args.command]
     if args.ports is not None:
-        ports = filter(lambda s: len(s) > 0,
-                       map(lambda p: p.strip(), args.ports.split(",")))
+        ports = list(filter(lambda s: len(s) > 0,
+                    map(lambda p: p.strip(), args.ports.split(","))))
         if len(ports) > 0:
             data['port'] = ports
     if args.volumes is not None:
-        volumes = filter(lambda s: len(s) > 0,
-                         map(lambda p: p.strip(), args.volumes.split(",")))
+        volumes = list(filter(lambda s: len(s) > 0,
+                    map(lambda p: p.strip(), args.volumes.split(","))))
         if len(volumes) > 0:
             data['volume'] = volumes
+    if args.kernel_modules is not None:
+        mods = list(filter(lambda m: len(m) > 0,
+                    map(lambda s: s.strip(), args.kernel_modules.split(","))))
+        if len(mods) > 0:
+            data['kernel-module'] = mods
+    if args.device_tree is not None:
+        dts = list(filter(lambda d: len(d) > 0,
+                    map(lambda s: s.strip(), args.device_tree.split(","))))
+        if len(dts) > 0:
+            data['device-tree'] = dts
 
     r = requests.put(url, data=json.dumps(data), headers=headers)
     if r.status_code == 200:
