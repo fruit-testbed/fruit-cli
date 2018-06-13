@@ -101,7 +101,7 @@ ID=`<id>`, as long as the node belongs to the user.
 
 ### run-container
 
-`fruit-cli run-container [--node <id>] [--params <params>] [--command <command>] <name> <image>`
+`fruit-cli run-container [--node <id>] [-p <list>] [-v <list>] [--command <command>] <name> <image>`
 
 **run-container** submits a container specification to the management server,
 that should be deployed on all nodes that belong to the user. When the container
@@ -117,9 +117,14 @@ Arguments are:
 - `<image>`, the container's image.
 
 Other options are:
-- `--params <params>`, parameters (in JSON array format) to be passed to `docker run` command.
-  See [here](https://docs.docker.com/engine/reference/run/) to learn more about all available
-  options.
+- `-p <list>`, publish a container's ports to the host. For example,
+  `-p 8000:80` publishes container's port 80 to the host's port 8000.
+  Multiple ports are separated with comma.
+- `-v <list>`, mount bind the host's volume to the container. This is very useful
+  to have a persistent file or sharing it with other containers. For example,
+  `-v /foo:/bar` mounts the host's `/data/.container-data/foo`
+  onto the container's `/bar`.
+  For security reason, the host volume is always relative to `/data/.container-data`.
 - `--command <command>`, commands (in JSON array format) that will be run inside the container.
 
 > Note that the deployment process is performed asynchronously. It commonly takes 5-10

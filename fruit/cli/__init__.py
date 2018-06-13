@@ -119,8 +119,10 @@ def run_container():
         help="""Target node which the container will be deployed.
                 If not specified then the container will be deployed
                 on all nodes owned by the user.""")
-    parser.add_argument("--params", dest="params", type=str,
-        help="Parameters to be passed to Docker run")
+    parser.add_argument("-p", dest="ports", type=str,
+        help="Publish one or more container's ports to the host")
+    parser.add_argument("-v", dest="volumes", type=str,
+        help="Mount bind one or more host's volumes to the container")
     parser.add_argument("--command", dest="command", type=str,
         help="Command that will be run in the container")
     parser.add_argument("name", type=container_name_type,
@@ -149,11 +151,16 @@ def run_container():
             data["command"] = json.loads(args.command)
         except:
             data["command"] = [args.command]
-    if args.params is not None:
-        try:
-            data["parameters"] = json.loads(args.params)
-        except:
-            data["parameters"] = [args.params]
+    if args.ports is not None:
+        ports = filter(lambda s: len(s) > 0,
+                       map(lambda p: p.strip(), args.ports.split(",")))
+        if len(ports) > 0:
+            data['port'] = ports
+    if args.volumes is not None:
+        volumes = filter(lambda s: len(s) > 0,
+                         map(lambda p: p.strip(), args.volumes.split(",")))
+        if len(volumes) > 0:
+            data['volume'] = volumes
 
     r = requests.put(url, data=json.dumps(data), headers=headers)
     if r.status_code == 200:
