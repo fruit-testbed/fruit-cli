@@ -65,7 +65,7 @@ Please check your mailbox (%s) for further instructions.""" % args.email)
 def config():
     parser = argparse.ArgumentParser()
     parser.add_argument("--edit", action="store_const", const=True,
-        default=False, help="Edit config file")
+                        default=False, help="Edit config file")
     args = parser.parse_args()
 
     if args.edit:
@@ -79,7 +79,7 @@ def config():
 def list_node():
     parser = argparse.ArgumentParser()
     parser.add_argument("--name", dest="name", type=str,
-        help="Node name")
+                        help="Node name")
     args = parser.parse_args()
 
     if CONFIG["email"] == "admin@fruit-testbed.org":
@@ -125,25 +125,28 @@ def monitor():
 def run_container():
     parser = argparse.ArgumentParser()
     parser.add_argument("--node", dest="node", type=str,
-        help="""Target node which the container will be deployed.
-                If not specified then the container will be deployed
-                on all nodes owned by the user.""")
+                        help="""Target node of container deployment.
+                        If not specified then the container will be deployed
+                        on all nodes owned by the user.""")
     parser.add_argument("-p", dest="ports", type=str,
-        help="Publish one or more container's ports to the host")
+                        help="""Publish one or more container's ports to
+                        the host""")
     parser.add_argument("-v", dest="volumes", type=str,
-        help="Mount bind one or more host's volumes to the container")
+                        help="""Mount bind one or more host's volumes to
+                        the container""")
     parser.add_argument("-c", "--command", dest="command", type=str,
-        help="Command that will be run in the container")
-    parser.add_argument("-k", "--kernel-module", dest="kernel_modules", type=str,
-        help="Load kernel modules before starting the container")
+                        help="Command that will be run in the container")
+    parser.add_argument("-k", "--kernel-module", dest="kernel_modules",
+                        type=str, help="""Load kernel modules before starting
+                        the container""")
     parser.add_argument("-dt", "--device-tree", dest="device_tree", type=str,
-        help="Load host device tree before starting the container")
+                        help="""Load host device tree before starting
+                        the container""")
     parser.add_argument("-d", "--device", dest="device", type=str,
-        help="Bind host device to the container")
+                        help="Bind host device to the container")
     parser.add_argument("name", type=container_name_type,
-        help="Container's name in pattern [a-zA-Z0-9\\-_]+")
-    parser.add_argument("image", type=str,
-        help="Container's image")
+                        help="Container's name in pattern [a-zA-Z0-9\\-_]+")
+    parser.add_argument("image", type=str, help="Container's image")
     args = parser.parse_args()
 
     if CONFIG["email"] == "admin@fruit-testbed.org":
@@ -168,12 +171,12 @@ def run_container():
             data["command"] = [args.command]
     if args.ports is not None:
         ports = list(filter(lambda s: len(s) > 0,
-                    map(lambda p: p.strip(), args.ports.split(","))))
+                     map(lambda p: p.strip(), args.ports.split(","))))
         if len(ports) > 0:
             data['port'] = ports
     if args.volumes is not None:
         volumes = list(filter(lambda s: len(s) > 0,
-                    map(lambda p: p.strip(), args.volumes.split(","))))
+                       map(lambda p: p.strip(), args.volumes.split(","))))
         if len(volumes) > 0:
             data['volume'] = volumes
     if args.kernel_modules is not None:
@@ -183,7 +186,7 @@ def run_container():
             data['kernel-module'] = mods
     if args.device_tree is not None:
         dts = list(filter(lambda d: len(d) > 0,
-                    map(lambda s: s.strip(), args.device_tree.split(","))))
+                   map(lambda s: s.strip(), args.device_tree.split(","))))
         if len(dts) > 0:
             data['device-tree'] = dts
     if args.device is not None:
@@ -203,8 +206,8 @@ def run_container():
         print("Partial success on creating the containers")
         print(r.text)
     else:
-        print("Created container '%s' failed (status code: %d)" % \
-                (args.name, r.status_code))
+        print("Created container '%s' failed (status code: %d)" %
+              (args.name, r.status_code))
         print(r.text)
         sys.exit(12)
 
@@ -212,9 +215,7 @@ def run_container():
 def list_container():
     parser = argparse.ArgumentParser()
     parser.add_argument("--node", dest="node", type=str,
-        help="""Target node which the container will be deployed.
-                If not specified then the container will be deployed
-                on all nodes owned by the user.""")
+                        help="Containers only on a particular node")
     args = parser.parse_args()
 
     if CONFIG["email"] == "admin@fruit-testbed.org":
@@ -254,7 +255,8 @@ def __inject_container_state(data, args):
         # single node
         monitor = r.json()
         if "docker" in monitor and "containers" in monitor["docker"]:
-            __inject_node_container_state(data, monitor["docker"]["containers"])
+            __inject_node_container_state(data,
+                                          monitor["docker"]["containers"])
     else:
         # multiple nodes
         monitor = r.json()
@@ -262,8 +264,10 @@ def __inject_container_state(data, args):
             if node not in data:
                 continue
             node_monitor = monitor[node]
-            if "docker" in node_monitor and "containers" in node_monitor["docker"]:
-                __inject_node_container_state(data[node],
+            if "docker" in node_monitor and \
+                    "containers" in node_monitor["docker"]:
+                __inject_node_container_state(
+                        data[node],
                         node_monitor["docker"]["containers"])
     return data
 
@@ -287,11 +291,9 @@ def __inject_node_container_state(data, containers):
 def rm_container():
     parser = argparse.ArgumentParser()
     parser.add_argument("--node", dest="node", type=str,
-        help="""Target node which the container will be deployed.
-                If not specified then the container will be deployed
-                on all nodes owned by the user.""")
+                        help="Remove container from a specific node which")
     parser.add_argument("name", type=container_name_type,
-        help="Container's name in pattern [a-zA-Z0-9\\-_]+")
+                        help="Container's name in pattern [a-zA-Z0-9\\-_]+")
     args = parser.parse_args()
 
     if CONFIG["email"] == "admin@fruit-testbed.org":
@@ -315,8 +317,8 @@ def rm_container():
         print("Partial success on stopping the containers")
         print(r.text)
     else:
-        print("Failed stopping container '%s' (status code: %d)" % \
-                (args.name, r.status_code))
+        print("Failed stopping container '%s' (status code: %d)" %
+              (args.name, r.status_code))
         print(r.text)
         sys.exit(14)
 
