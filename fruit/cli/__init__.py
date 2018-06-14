@@ -77,13 +77,22 @@ def config():
 
 
 def list_node():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--hostname", dest="hostname", type=str,
+        help="Node hostname")
+    args = parser.parse_args()
+
     if CONFIG["email"] == "admin@fruit-testbed.org":
         url = "%s/node" % CONFIG["server"]
     else:
         url = "%s/user/%s/node" % (CONFIG["server"], CONFIG["email"])
     headers = {"X-API-Key": CONFIG["api-key"]}
 
-    r = requests.get(url, headers=headers)
+    params = {}
+    if args.hostname is not None:
+        params['hostname'] = args.hostname
+
+    r = requests.get(url, headers=headers, params=params)
     if r.status_code == 200:
         print(r.text)
     else:
