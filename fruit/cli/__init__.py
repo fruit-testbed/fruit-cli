@@ -35,8 +35,8 @@ def load_config():
     print("Config file %s does not exist." % CONFIG_FILE)
     try:
         input("Press Enter to create one...")
-    except:
-        pass
+    except EOFError:
+        return
     cfg = {
         "email": "<your-email-address>",
         "api-key": "<your-api-key>",
