@@ -1,0 +1,3 @@
+#!/bin/sh
+
+find fruit -type f -name '*.py' -exec pycodestyle --max-line-length 79 {} +
