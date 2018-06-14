@@ -5,7 +5,7 @@ except ImportError:
 
 setup(
     name="fruit-cli",
-    version="0.1.4",
+    version="0.1.5",
     author="Herry",
     author_email="herry.herry@glasgow.ac.uk",
     license="Creative Commons Attribution-ShareAlike 4.0 International Public",
