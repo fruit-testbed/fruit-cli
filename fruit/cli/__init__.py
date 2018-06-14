@@ -132,12 +132,14 @@ def run_container():
         help="Publish one or more container's ports to the host")
     parser.add_argument("-v", dest="volumes", type=str,
         help="Mount bind one or more host's volumes to the container")
-    parser.add_argument("--command", dest="command", type=str,
+    parser.add_argument("-c", "--command", dest="command", type=str,
         help="Command that will be run in the container")
-    parser.add_argument("-k", dest="kernel_modules", type=str,
-        help="Kernel modules to be loaded before starting the container")
-    parser.add_argument("-d", dest="device_tree", type=str,
-        help="Device tree to be loaded before starting the container")
+    parser.add_argument("-k", "--kernel-module", dest="kernel_modules", type=str,
+        help="Load kernel modules before starting the container")
+    parser.add_argument("-dt", "--device-tree", dest="device_tree", type=str,
+        help="Load host device tree before starting the container")
+    parser.add_argument("-d", "--device", dest="device", type=str,
+        help="Bind host device to the container")
     parser.add_argument("name", type=container_name_type,
         help="Container's name in pattern [a-zA-Z0-9\\-_]+")
     parser.add_argument("image", type=str,
@@ -184,6 +186,11 @@ def run_container():
                     map(lambda s: s.strip(), args.device_tree.split(","))))
         if len(dts) > 0:
             data['device-tree'] = dts
+    if args.device is not None:
+        devs = list(filter(lambda d: len(d) > 0,
+                    map(lambda s: s.strip(), args.device.split(","))))
+        if len(devs) > 0:
+            data['device'] = devs
 
     r = requests.put(url, data=json.dumps(data), headers=headers)
     if r.status_code == 200:
