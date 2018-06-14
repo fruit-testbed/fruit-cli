@@ -167,7 +167,7 @@ def run_container():
     if args.command is not None:
         try:
             data["command"] = json.loads(args.command)
-        except:
+        except ValueError:
             data["command"] = [args.command]
     if args.ports is not None:
         ports = list(filter(lambda s: len(s) > 0,
