@@ -103,6 +103,7 @@ def list_node():
 def monitor():
     parser = argparse.ArgumentParser()
     parser.add_argument("--node", dest="node", type=str)
+    parser.add_argument("--name", dest="name", type=str, help="Node name")
     args = parser.parse_args()
 
     if CONFIG["email"] == "admin@fruit-testbed.org":
@@ -128,6 +129,8 @@ def run_container():
                         help="""Target node of container deployment.
                         If not specified then the container will be deployed
                         on all nodes owned by the user.""")
+    parser.add_argument("--name", dest="name", type=str,
+                        help="Name of target node")
     parser.add_argument("-p", dest="ports", type=str,
                         help="""Publish one or more container's ports to
                         the host""")
@@ -216,6 +219,7 @@ def list_container():
     parser = argparse.ArgumentParser()
     parser.add_argument("--node", dest="node", type=str,
                         help="Containers only on a particular node")
+    parser.add_argument("--name", dest="name", type=str, help="Node name")
     args = parser.parse_args()
 
     if CONFIG["email"] == "admin@fruit-testbed.org":
@@ -292,6 +296,7 @@ def rm_container():
     parser = argparse.ArgumentParser()
     parser.add_argument("--node", dest="node", type=str,
                         help="Remove container from a specific node which")
+    parser.add_argument("--name", dest="name", type=str, help="Node name")
     parser.add_argument("name", type=container_name_type,
                         help="Container's name in pattern [a-zA-Z0-9\\-_]+")
     args = parser.parse_args()
