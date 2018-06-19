@@ -93,7 +93,7 @@ def __nodes(name=None):
 def list_node():
     parser = argparse.ArgumentParser()
     parser.add_argument("--name", dest="name", type=str,
-                        help="Node name")
+                        help="Node's name")
     args = parser.parse_args()
 
     status, nodes = __nodes(name=args.name)
