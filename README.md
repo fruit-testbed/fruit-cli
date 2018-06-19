@@ -73,24 +73,32 @@ If option `--edit` is given, then it opens the config file (`~/.fruit-cli`) with
 
 ### list-node
 
-`fruit-cli list-node`
+`fruit-cli list-node [--name <hostname>]`
 
 **list-node** prints a list of nodes (in JSON format) that belong to the user.
+
+If option `--name <hostname>` is given, then it only includes nodes whose hostname is equal to `<hostname>`. You can use `*` for pattern matching, for example:
+
+```shell
+fruit-cli list-node --name gms*
+```
 
 
 ### monitor
 
-`fruit-cli monitor [--node <id>]`
+`fruit-cli monitor [--node <id>] [--name <hostname>]`
 
 **monitor** prints monitoring data of all nodes belong to the user.
 
 If option `--node <id>` is given, then it prints monitoring data of node with ID=`<id>`,
 as long as the node belongs to the user.
 
+If option `--name <hostname>` is given, then it only includes nodes whose hostname is equal to `<hostname>`. You can use `*` for pattern matching.
+
 
 ### list-container
 
-`fruit-cli list-container [--node <id>]`
+`fruit-cli list-container [--node <id>] [--name <hostname>]`
 
 **list-container** prints a list of containers that have been submitted to the management
 server, that should be deployed on all nodes that belong to the user.
@@ -98,10 +106,12 @@ server, that should be deployed on all nodes that belong to the user.
 If option `--node <id>` is given, then it prints a list of containers of node with
 ID=`<id>`, as long as the node belongs to the user.
 
+If option `--name <hostname>` is given, then it only includes nodes whose hostname is equal to `<hostname>`. You can use `*` for pattern matching.
+
 
 ### run-container
 
-`fruit-cli run-container [--node <id>] [-p <list>] [-v <list>] [--command <command>] <name> <image>`
+`fruit-cli run-container [--node <id>] [--name <hostname>] [-p <list>] [-v <list>] [--command <command>] <name> <image>`
 
 **run-container** submits a container specification to the management server,
 that should be deployed on all nodes that belong to the user. When the container
@@ -111,6 +121,8 @@ Otherwise, no operation will be performed.
 
 If option `--node <id>` is given, then the container will only be deployed on node
 with ID=`<id>`, as long as the node belongs to the user.
+
+If option `--name <hostname>` is given, then it only includes nodes whose hostname is equal to `<hostname>`. You can use `*` for pattern matching.
 
 Arguments are:
 - `<name>`, container's name.
@@ -164,7 +176,7 @@ the Nginx service can be accessed from external.
 
 ### rm-container
 
-`fruit-cli rm-container [--node <id>] <name>`
+`fruit-cli rm-container [--node <id>] [--node <hostname>] <name>`
 
 **rm-container** removes container with name=`<name>` from all nodes that belong to the user.
 For example:
@@ -182,3 +194,5 @@ fruit-cli rm-container --node pi123 nginx
 
 > Note that the deployment process is performed asynchronously. It commonly takes 5-10
 > minutes until the container has been removed from target node by **fruit-agent**.
+
+If option `--name <hostname>` is given, then it only includes nodes whose hostname is equal to `<hostname>`. You can use `*` for pattern matching.
