@@ -96,7 +96,7 @@ def list_node():
         sys.stderr.write("ERROR: Node is not found\n")
         sys.exit(15)
     else:
-        sys.stderr.write("ERROR: Listing nodes failed (status code: %d)\n" \
+        sys.stderr.write("ERROR: Listing nodes failed (status code: %d)\n"
                          % r.status_code)
         sys.exit(10)
 
@@ -165,7 +165,6 @@ def run_container():
         }
     url = "%s/container" % CONFIG["server"]
 
-    # Container's specification
     specification = {
         "name": args.container_name,
         "image": args.container_image,
@@ -247,7 +246,7 @@ def list_container():
         sys.stderr.write("ERROR: Node is not found\n")
         sys.exit(15)
     else:
-        sys.stderr.write("Failed listing container(s) (status code: %d)\n" % \
+        sys.stderr.write("Failed listing container(s) (status code: %d)\n" %
                          r.status_code)
         sys.stderr.write(r.text)
         sys.stderr.write("\n")
@@ -321,7 +320,7 @@ def rm_container():
         sys.stderr.write("ERROR: Node is not found\n")
         sys.exit(15)
     else:
-        sys.stderr.write("Failed removing container '%s' (status code: %d)\n" \
+        sys.stderr.write("Failed removing container '%s' (status code: %d)\n"
                          % (args.container_name, r.status_code))
         sys.stderr.write(r.text)
         sys.stderr.write("\n")
