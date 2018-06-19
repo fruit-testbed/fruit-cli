@@ -91,7 +91,7 @@ def list_node():
 
     r = requests.get(url, headers=headers, params=params)
     if r.status_code == 200:
-        print(r.text, "\n")
+        print(r.text)
     elif r.status_code == 404:
         sys.stderr.write("ERROR: Node is not found\n")
         sys.exit(15)
@@ -210,6 +210,9 @@ def run_container():
     elif r.status_code == 206:
         print("Partial success on creating the containers")
         print(r.text)
+    elif r.status_code == 404:
+        sys.stderr.write("ERROR: Node is not found\n")
+        sys.exit(15)
     else:
         sys.stderr.write(
             "ERROR: Failed creating container '%s' (status code: %d)\n" %
@@ -239,6 +242,9 @@ def list_container():
         data = __inject_container_state(r.json())
         json.dump(data, sys.stdout, indent=2, sort_keys=True)
         sys.stdout.write("\n")
+    elif r.status_code == 404:
+        sys.stderr.write("ERROR: Node is not found\n")
+        sys.exit(15)
     else:
         sys.stderr.write("Failed listing container(s) (status code: %d)\n" % \
                          r.status_code)
@@ -322,6 +328,9 @@ def rm_container():
     elif r.status_code == 206:
         print("Partial success on removing the containers")
         print(r.text)
+    elif r.status_code == 404:
+        sys.stderr.write("ERROR: Node is not found\n")
+        sys.exit(15)
     else:
         sys.stderr.write("Failed removing container '%s' (status code: %d)\n" \
                          % (args.container_name, r.status_code))
