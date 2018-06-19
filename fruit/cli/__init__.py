@@ -247,43 +247,44 @@ def list_container():
     parser = argparse.ArgumentParser()
     parser.add_argument("--node", dest="node", type=str,
                         help="Containers only on a particular node")
-    parser.add_argument("--name", dest="name", type=str, help="Node name")
+    parser.add_argument("--name", dest="name", type=str, help="Node's name")
     args = parser.parse_args()
+
+    headers = {"X-API-Key": CONFIG["api-key"]}
+    params = {'hostname': args.name, 'id': args.node}
 
     if CONFIG["email"] == "admin@fruit-testbed.org":
         url = "%s/container" % CONFIG["server"]
     else:
         url = "%s/user/%s/container" % (CONFIG["server"], CONFIG["email"])
 
-    if args.node is not None:
-        url = "%s/%s" % (url, args.node)
-    headers = {
-        "X-API-Key": CONFIG["api-key"],
-        }
-    r = requests.get(url, headers=headers)
+    r = requests.get(url, headers=headers, params=params)
     if r.status_code == 200:
-        data = __inject_container_state(r.json(), args)
-        print(json.dumps(data, indent=2, sort_keys=True))
+        data = __inject_container_state(r.json())
+        json.dump(data, sys.stdout, indent=2, sort_keys=True)
+        sys.stdout.write("\n")
     else:
-        print("Failed listing container(s) (status code: %d)" % r.status_code)
-        print(r.text)
+        sys.stderr.write("Failed listing container(s) (status code: %d)\n" % \
+                         r.status_code)
+        sys.stderr.write(r.text)
+        sys.stderr.write("\n")
         sys.exit(13)
 
 
-def __inject_container_state(data, args):
+def __inject_container_state(data, node=None):
     if CONFIG["email"] == "admin@fruit-testbed.org":
         url = "%s/monitor" % CONFIG["server"]
     else:
         url = "%s/user/%s/monitor" % (CONFIG["server"], CONFIG["email"])
 
     headers = {"X-API-Key": CONFIG["api-key"]}
-    if args.node is not None:
-        url = "%s/%s" % (url, args.node)
+    if node is not None:
+        url = "%s/%s" % (url, node)
     r = requests.get(url, headers=headers)
     if r.status_code != 200:
         print("Warning: failed getting container(s)'s state", file=sys.stderr)
         print(r.text, file=sys.stderr)
-    elif args.node is not None:
+    elif node is not None:
         # single node
         monitor = r.json()
         if "docker" in monitor and "containers" in monitor["docker"]:
@@ -292,14 +293,14 @@ def __inject_container_state(data, args):
     else:
         # multiple nodes
         monitor = r.json()
-        for node in monitor:
-            if node not in data:
+        for piid in monitor:
+            if piid not in data:
                 continue
-            node_monitor = monitor[node]
+            node_monitor = monitor[piid]
             if "docker" in node_monitor and \
                     "containers" in node_monitor["docker"]:
                 __inject_node_container_state(
-                        data[node],
+                        data[piid],
                         node_monitor["docker"]["containers"])
     return data
 
