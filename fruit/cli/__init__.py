@@ -154,92 +154,90 @@ node '%s' (status code %d)\n""" % (node, r.status_code))
 def run_container():
     parser = argparse.ArgumentParser()
     parser.add_argument("--node", dest="node", type=str,
-                        help="""Target node of container deployment.
-                        If not specified then the container will be deployed
-                        on all nodes owned by the user.""")
-    parser.add_argument("--name", dest="name", type=str,
-                        help="Name of target node")
+                        help="Target node")
+    parser.add_argument("--name", dest="node_name", type=str,
+                        help="Target node's name")
     parser.add_argument("-p", dest="ports", type=str,
-                        help="""Publish one or more container's ports to
-                        the host""")
+                        help="Publish the container's port(s) to the host")
     parser.add_argument("-v", dest="volumes", type=str,
-                        help="""Mount bind one or more host's volumes to
-                        the container""")
+                        help="Bind host volume(s) to the container")
     parser.add_argument("-c", "--command", dest="command", type=str,
                         help="Command that will be run in the container")
     parser.add_argument("-k", "--kernel-module", dest="kernel_modules",
-                        type=str, help="""Load kernel modules before starting
+                        type=str, help="""Load kernel module(s) before
+                        starting the container""")
+    parser.add_argument("-dt", "--device-tree", dest="device_trees", type=str,
+                        help="""Load host device-tree(s) before starting
                         the container""")
-    parser.add_argument("-dt", "--device-tree", dest="device_tree", type=str,
-                        help="""Load host device tree before starting
-                        the container""")
-    parser.add_argument("-d", "--device", dest="device", type=str,
-                        help="Bind host device to the container")
-    parser.add_argument("name", type=__container_name_type,
-                        help="Container's name in pattern [a-zA-Z0-9\\-_]+")
-    parser.add_argument("image", type=str, help="Container's image")
+    parser.add_argument("-d", "--device", dest="devices", type=str,
+                        help="Bind host device(s) to the container")
+    parser.add_argument("container_name", type=__container_name_type,
+                        help="Pattern [a-zA-Z0-9\\-_]+")
+    parser.add_argument("container_image", type=str)
     args = parser.parse_args()
 
-    if CONFIG["email"] == "admin@fruit-testbed.org":
-        url = "%s/container" % CONFIG["server"]
-    else:
-        url = "%s/user/%s/container" % (CONFIG["server"], CONFIG["email"])
-
-    if args.node is not None:
-        url = "%s/%s" % (url, args.node)
     headers = {
         "Content-Type": "application/json",
         "X-API-Key": CONFIG["api-key"],
         }
-    data = {
-        "name": args.name,
-        "image": args.image,
+    params = {
+        "hostname": args.node_name,
+        "id": args.node,
+        "email": CONFIG["email"],
+        }
+    url = "%s/container" % CONFIG["server"]
+
+    # Container's specification
+    specification = {
+        "name": args.container_name,
+        "image": args.container_image,
         }
     if args.command is not None:
         try:
-            data["command"] = json.loads(args.command)
+            specification["command"] = json.loads(args.command)
         except ValueError:
-            data["command"] = [args.command]
+            specification["command"] = [args.command]
     if args.ports is not None:
         ports = list(filter(lambda s: len(s) > 0,
                      map(lambda p: p.strip(), args.ports.split(","))))
         if len(ports) > 0:
-            data['port'] = ports
+            specification['port'] = ports
     if args.volumes is not None:
         volumes = list(filter(lambda s: len(s) > 0,
                        map(lambda p: p.strip(), args.volumes.split(","))))
         if len(volumes) > 0:
-            data['volume'] = volumes
+            specification['volume'] = volumes
     if args.kernel_modules is not None:
         mods = list(filter(lambda m: len(m) > 0,
                     map(lambda s: s.strip(), args.kernel_modules.split(","))))
         if len(mods) > 0:
-            data['kernel-module'] = mods
-    if args.device_tree is not None:
+            specification['kernel-module'] = mods
+    if args.device_trees is not None:
         dts = list(filter(lambda d: len(d) > 0,
-                   map(lambda s: s.strip(), args.device_tree.split(","))))
+                   map(lambda s: s.strip(), args.device_trees.split(","))))
         if len(dts) > 0:
-            data['device-tree'] = dts
-    if args.device is not None:
+            specification['device-tree'] = dts
+    if args.devices is not None:
         devs = list(filter(lambda d: len(d) > 0,
-                    map(lambda s: s.strip(), args.device.split(","))))
+                    map(lambda s: s.strip(), args.devices.split(","))))
         if len(devs) > 0:
-            data['device'] = devs
+            specification['device'] = devs
 
-    r = requests.put(url, data=json.dumps(data), headers=headers)
-    if r.status_code == 200:
-        print("Created new container '%s' on all nodes" % args.name)
-    elif r.status_code == 201:
-        print("Created new container '%s' on node %s" % (args.name, args.node))
+    r = requests.put(url, data=json.dumps(specification), headers=headers,
+                     params=params)
+    if r.status_code in [200, 201]:
+        print("Created container '%s'." % (args.container_name))
     elif r.status_code == 202:
-        print("Updated container '%s' on node %s" % (args.name, args.node))
+        print("Updated container '%s'." % (args.container_name))
     elif r.status_code == 206:
         print("Partial success on creating the containers")
         print(r.text)
     else:
-        print("Created container '%s' failed (status code: %d)" %
-              (args.name, r.status_code))
-        print(r.text)
+        sys.stderr.write(
+            "ERROR: Failed creating container '%s' (status code: %d)\n" %
+            (args.container_name, r.status_code))
+        sys.stderr.write(r.text)
+        sys.stderr.write("\n")
         sys.exit(12)
 
 
