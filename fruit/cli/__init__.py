@@ -76,51 +76,79 @@ def config():
     sys.stdout.flush()
 
 
+def __nodes(name=None):
+    if CONFIG["email"] == "admin@fruit-testbed.org":
+        url = "%s/node" % CONFIG["server"]
+    else:
+        url = "%s/user/%s/node" % (CONFIG["server"], CONFIG["email"])
+    headers = {"X-API-Key": CONFIG["api-key"]}
+    params = {'hostname': name}
+
+    r = requests.get(url, headers=headers, params=params)
+    if r.status_code == 200:
+        return 200, json.loads(r.text)
+    return r.status_code, None
+
+
 def list_node():
     parser = argparse.ArgumentParser()
     parser.add_argument("--name", dest="name", type=str,
                         help="Node name")
     args = parser.parse_args()
 
-    if CONFIG["email"] == "admin@fruit-testbed.org":
-        url = "%s/node" % CONFIG["server"]
+    status, nodes = __nodes(name=args.name)
+    if status == 200:
+        json.dump(nodes, sys.stdout, sort_keys=True, indent="  ")
+        sys.stdout.write("\n")
+    elif status == 404:
+        sys.stderr.write("Node '%s' is not found\n" % args.name)
+        sys.exit(15)
     else:
-        url = "%s/user/%s/node" % (CONFIG["server"], CONFIG["email"])
-    headers = {"X-API-Key": CONFIG["api-key"]}
-
-    params = {}
-    if args.name is not None:
-        params['hostname'] = args.name
-
-    r = requests.get(url, headers=headers, params=params)
-    if r.status_code == 200:
-        print(r.text)
-    else:
-        print("Listing nodes failed (status code: %d)" % r.status_code)
+        sys.stderr.write("ERROR: Listing nodes failed (status code: %d)\n" \
+                         % status)
         sys.exit(10)
 
 
 def monitor():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--node", dest="node", type=str)
-    parser.add_argument("--name", dest="name", type=str, help="Node name")
+    parser.add_argument("--node", dest="node", type=str, nargs=1)
+    parser.add_argument("--name", dest="name", type=str, help="Node's name")
     args = parser.parse_args()
 
+    if args.name is not None and args.node is None:
+        status, args.node = __nodes(name=args.name)
+        if status == 404:
+            sys.stderr.write("ERROR: Node '%s' is not found\n" % args.name)
+            sys.exit(20)
+
+    headers = {"X-API-Key": CONFIG["api-key"]}
     if CONFIG["email"] == "admin@fruit-testbed.org":
         url = "%s/monitor" % CONFIG["server"]
     else:
         url = "%s/user/%s/monitor" % (CONFIG["server"], CONFIG["email"])
 
-    if args.node is not None:
-        url = "%s/%s" % (url, args.node)
-    headers = {"X-API-Key": CONFIG["api-key"]}
+    if args.node is None:
+        r = requests.get(url, headers=headers)
+        if r.status_code == 200:
+            print(r.text)
+            return
+        else:
+            sys.stderr.write("ERROR: Listing nodes failed (status code: %d)\n"
+                             % r.status_code)
+            sys.exit(11)
 
-    r = requests.get(url, headers=headers)
-    if r.status_code == 200:
-        print(r.text)
-    else:
-        print("Listing nodes failed (status code: %d)" % r.status_code)
-        sys.exit(11)
+    res = {}
+    for node in args.node:
+        url_node = "%s/%s" % (url, node)
+        r = requests.get(url_node, headers=headers)
+        if r.status_code == 200:
+            res[node] = json.loads(r.text)
+        else:
+            sys.stderr.write("""WARNING: Failed getting monitoring data of \
+node '%s' (status code %d)\n""" % (node, r.status_code))
+            sys.stderr.flush()
+    json.dump(res, sys.stdout, sort_keys=True, indent="  ")
+    sys.stdout.write("\n")
 
 
 def run_container():
