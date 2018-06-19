@@ -19,7 +19,7 @@ CONFIG = {
     }
 
 
-def container_name_type(name, pattern=re.compile(r"^[a-zA-Z0-9_\-]+$")):
+def __container_name_type(name, pattern=re.compile(r"^[a-zA-Z0-9_\-]+$")):
     if not isinstance(name, str) or not pattern.match(name):
         raise argparse.ArgumentTypeError
     return name
@@ -147,7 +147,7 @@ def run_container():
                         the container""")
     parser.add_argument("-d", "--device", dest="device", type=str,
                         help="Bind host device to the container")
-    parser.add_argument("name", type=container_name_type,
+    parser.add_argument("name", type=__container_name_type,
                         help="Container's name in pattern [a-zA-Z0-9\\-_]+")
     parser.add_argument("image", type=str, help="Container's image")
     args = parser.parse_args()
@@ -297,7 +297,7 @@ def rm_container():
     parser.add_argument("--node", dest="node", type=str,
                         help="Remove container from a specific node which")
     parser.add_argument("--name", dest="name", type=str, help="Node name")
-    parser.add_argument("name", type=container_name_type,
+    parser.add_argument("name", type=__container_name_type,
                         help="Container's name in pattern [a-zA-Z0-9\\-_]+")
     args = parser.parse_args()
 
