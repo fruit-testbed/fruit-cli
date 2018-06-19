@@ -324,36 +324,33 @@ def __inject_node_container_state(data, containers):
 def rm_container():
     parser = argparse.ArgumentParser()
     parser.add_argument("--node", dest="node", type=str,
-                        help="Remove container from a specific node which")
-    parser.add_argument("--name", dest="name", type=str, help="Node name")
-    parser.add_argument("name", type=__container_name_type,
+                        help="Remove container from a specific node")
+    parser.add_argument("--name", dest="node_name", type=str,
+                        help="Node's name")
+    parser.add_argument("container_name", type=__container_name_type,
                         help="Container's name in pattern [a-zA-Z0-9\\-_]+")
     args = parser.parse_args()
 
-    if CONFIG["email"] == "admin@fruit-testbed.org":
-        url = "%s/container" % CONFIG["server"]
-    else:
-        url = "%s/user/%s/container" % (CONFIG["server"], CONFIG["email"])
-
-    if args.node is not None:
-        url = "%s/%s" % (url, args.node)
-    url = "%s/%s" % (url, args.name)
-    headers = {
-        "X-API-Key": CONFIG["api-key"],
+    headers = {"X-API-Key": CONFIG["api-key"]}
+    params = {
+        "name": args.container_name,
+        "hostname": args.node_name,
+        "id": args.node,
+        "email": CONFIG["email"],
         }
-    r = requests.delete(url, headers=headers)
+    url = "%s/container" % CONFIG["server"]
+
+    r = requests.delete(url, headers=headers, params=params)
     if r.status_code == 204:
-        if args.node is None:
-            print("Stopped container '%s' on all nodes." % args.name)
-        else:
-            print("Stopped container '%s' on node %s" % (args.name, args.node))
+        print("Container '%s' has been removed." % args.container_name)
     elif r.status_code == 206:
-        print("Partial success on stopping the containers")
+        print("Partial success on removing the containers")
         print(r.text)
     else:
-        print("Failed stopping container '%s' (status code: %d)" %
-              (args.name, r.status_code))
-        print(r.text)
+        sys.stderr.write("Failed removing container '%s' (status code: %d)\n" \
+                         % (args.container_name, r.status_code))
+        sys.stderr.write(r.text)
+        sys.stderr.write("\n")
         sys.exit(14)
 
 
