@@ -226,20 +226,21 @@ def list_container():
     parser = argparse.ArgumentParser()
     parser.add_argument("--node", dest="node", type=str,
                         help="Containers only on a particular node")
-    parser.add_argument("--name", dest="name", type=str, help="Node's name")
+    parser.add_argument("--name", dest="node_name", type=str,
+                        help="Node's name")
     args = parser.parse_args()
 
     headers = {"X-API-Key": CONFIG["api-key"]}
-    params = {'hostname': args.name, 'id': args.node}
-
-    if CONFIG["email"] == "admin@fruit-testbed.org":
-        url = "%s/container" % CONFIG["server"]
-    else:
-        url = "%s/user/%s/container" % (CONFIG["server"], CONFIG["email"])
+    params = {
+        "hostname": args.node_name,
+        "id": args.node,
+        "email": CONFIG["email"],
+        }
+    url = "%s/container" % CONFIG["server"]
 
     r = requests.get(url, headers=headers, params=params)
     if r.status_code == 200:
-        data = __inject_container_state(r.json())
+        data = __inject_container_state(r.json(), headers, params)
         json.dump(data, sys.stdout, indent=2, sort_keys=True)
         sys.stdout.write("\n")
     elif r.status_code == 404:
@@ -253,37 +254,25 @@ def list_container():
         sys.exit(13)
 
 
-def __inject_container_state(data, node=None):
-    if CONFIG["email"] == "admin@fruit-testbed.org":
-        url = "%s/monitor" % CONFIG["server"]
-    else:
-        url = "%s/user/%s/monitor" % (CONFIG["server"], CONFIG["email"])
-
-    headers = {"X-API-Key": CONFIG["api-key"]}
-    if node is not None:
-        url = "%s/%s" % (url, node)
-    r = requests.get(url, headers=headers)
+def __inject_container_state(data, headers, params):
+    url = "%s/monitor" % CONFIG["server"]
+    r = requests.get(url, headers=headers, params=params)
     if r.status_code != 200:
-        print("Warning: failed getting container(s)'s state", file=sys.stderr)
-        print(r.text, file=sys.stderr)
-    elif node is not None:
-        # single node
-        monitor = r.json()
-        if "docker" in monitor and "containers" in monitor["docker"]:
-            __inject_node_container_state(data,
-                                          monitor["docker"]["containers"])
-    else:
-        # multiple nodes
-        monitor = r.json()
-        for piid in monitor:
-            if piid not in data:
-                continue
-            node_monitor = monitor[piid]
-            if "docker" in node_monitor and \
-                    "containers" in node_monitor["docker"]:
-                __inject_node_container_state(
-                        data[piid],
-                        node_monitor["docker"]["containers"])
+        sys.stderr.write("Warning: failed getting container(s)'s state\n")
+        sys.stderr.flush()
+        return
+
+    # multiple nodes
+    monitor = r.json()
+    for piid in monitor:
+        if piid not in data:
+            continue
+        node_monitor = monitor[piid]
+        if isinstance(node_monitor, dict) and "docker" in node_monitor and \
+                "containers" in node_monitor["docker"]:
+            __inject_node_container_state(
+                    data[piid],
+                    node_monitor["docker"]["containers"])
     return data
 
 
