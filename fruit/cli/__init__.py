@@ -25,7 +25,7 @@ def __container_name_type(name, pattern=re.compile(r"^[a-zA-Z0-9_\-]+$")):
     return name
 
 
-def load_config():
+def __load_config():
     if path.exists(CONFIG_FILE):
         with open(CONFIG_FILE) as f:
             cfg = yaml.safe_load(f)
@@ -70,7 +70,7 @@ def config():
 
     if args.edit:
         subprocess.call([CONFIG["editor"], CONFIG_FILE])
-        load_config()
+        __load_config()
     print("--- Your configs in %s ---" % CONFIG_FILE)
     yaml.safe_dump(CONFIG, stream=sys.stdout, default_flow_style=False)
     sys.stdout.flush()
@@ -352,7 +352,7 @@ def main():
     if sys.argv[0] == "register":
         register()
 
-    load_config()
+    __load_config()
 
     if sys.argv[0] == "config":
         config()
