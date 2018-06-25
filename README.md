@@ -137,10 +137,10 @@ Other options are:
   `-v /foo:/bar` mounts the host's `/data/.container-data/foo`
   onto the container's `/bar`.
   For security reason, the host volume is always relative to `/data/.container-data`.
-- `--command <command>`, commands (in JSON array format) that will be run inside the container.
-- `-k <list>`, load kernel modules before starting the container.
-- `-dt <list>`, load device tree blob before starting the container.
-- `-d <list>`, bind host device to the container.
+- `-c <command>`, commands (in JSON array format) that will be run inside the container.
+- `-k <list>`, load kernel modules (comma separated) before starting the container.
+- `-dt <list>`, load device tree blob (comma separated) before starting the container.
+- `-d <list>`, bind host devices (comma separated) to the container. [Here](https://github.com/fruit-testbed/fruit-agent/blob/1436ae0a99e784461a586feffea499841c39fe4c/fruit-container.in#L24) is the white-list of devices that can be bound to the container.
 
 > Note that the deployment process is performed asynchronously. It commonly takes 5-10
 > minutes until the container has been started on target node by **fruit-agent**.
@@ -172,6 +172,16 @@ the Nginx service can be accessed from external.
 
 
 > The examples are using image `herry13/nginx:fruit` available in [Docker hub](https://hub.docker.com/r/herry13/nginx/).
+
+#### Example: run a container that needs specific kernel module, device-tree, and device-file.
+
+```shell
+fruit-cli run-container --node pi123 -p 8000:80 \
+    -k i2c-dev -dt i2c_arm=on -d /dev/i2c-1 \
+    bme280 herry13/fruit-bme280
+```
+
+The above will run a container with name `bme280` and image `herry13/fruit-bme280`, on node `pi123`. Before running the container, `i2c-dev` kernel module must be loaded, `i2c_arm=on` device-tree overlay parameter must be applied, and `/dev/i2c-1` device file must be bound to the container. Port `80` of the container is bound to host's port `8000`.
 
 
 ### rm-container
