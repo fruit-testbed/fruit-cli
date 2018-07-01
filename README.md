@@ -86,7 +86,7 @@ fruit-cli list-node --name gms*
 
 ### monitor
 
-`fruit-cli monitor [--node <id>] [--name <hostname>]`
+`fruit-cli monitor [--node <id>] [--name <hostname>] [path]`
 
 **monitor** prints monitoring data of all nodes belong to the user.
 
@@ -94,6 +94,8 @@ If option `--node <id>` is given, then it prints monitoring data of node with ID
 as long as the node belongs to the user.
 
 If option `--name <hostname>` is given, then it only includes nodes whose hostname is equal to `<hostname>`. You can use `*` for pattern matching.
+
+If positional argument `[path]` is given, then it only prints value with that path. This applies to the monitoring data of each node.
 
 
 ### list-container
