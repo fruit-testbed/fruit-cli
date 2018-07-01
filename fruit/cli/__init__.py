@@ -101,11 +101,23 @@ def list_node():
         sys.exit(10)
 
 
+def __resolve(keys, data):
+    for key in keys:
+        if key == "":
+            continue
+        if not isinstance(data, dict) or key not in data:
+            return None
+        data = data[key]
+    return data
+
+
 def monitor():
     parser = argparse.ArgumentParser()
     parser.add_argument("--node", dest="node", type=str)
     parser.add_argument("--name", dest="node_name", type=str,
                         help="Node's name")
+    parser.add_argument("path", nargs="?", default="/", type=str,
+                        help="Path of values (separated by /)")
     args = parser.parse_args()
 
     headers = {"X-API-Key": CONFIG["api-key"]}
@@ -118,7 +130,14 @@ def monitor():
 
     r = requests.get(url, headers=headers, params=params)
     if r.status_code == 200:
-        print(r.text)
+        p = list(filter(lambda s: len(s) > 0, args.path.split("/")))
+        if len(p) == 0:
+            print(r.text)
+        data = json.loads(r.text)
+        for node in data:
+            data[node] = __resolve(p, data[node])
+        json.dump(data, sys.stdout, indent=2, sort_keys=True)
+        sys.stdout.write("\n")
     elif r.status_code == 404:
         sys.stderr.write("ERROR: Node is not found\n")
         sys.exit(16)
