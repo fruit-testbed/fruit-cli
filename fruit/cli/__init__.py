@@ -130,7 +130,8 @@ def monitor():
 
     r = requests.get(url, headers=headers, params=params)
     if r.status_code == 200:
-        p = list(filter(lambda s: len(s) > 0, args.path.split("/")))
+        sep = ":" if args.path[0] == ":" else "/"
+        p = list(filter(lambda s: len(s) > 0, args.path.split(sep)))
         if len(p) == 0:
             print(r.text)
         data = json.loads(r.text)
