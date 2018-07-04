@@ -1,6 +1,8 @@
 fruit-cli
 =========
 
+[![PyPI version](https://badge.fury.io/py/fruit-cli.svg)](https://badge.fury.io/py/fruit-cli)
+
 A command-line application to manage Fruit federated cluster.
 
 
