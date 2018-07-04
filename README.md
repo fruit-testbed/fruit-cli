@@ -97,7 +97,11 @@ as long as the node belongs to the user.
 
 If option `--name <hostname>` is given, then it only includes nodes whose hostname is equal to `<hostname>`. You can use `*` for pattern matching.
 
-If positional argument `[path]` is given, then it only prints value with that path. This applies to the monitoring data of each node.
+If positional argument `[path]` is given, then it only prints the monitoring
+data with that path, which applies to each node.
+The path can be separated by `/` or `:`.
+For example: `fruit-cli monitor /network/eth0` prints the address of interface `eth0`
+of each node. `fruit-cli monitor :network:eth0` generates the same output.
 
 
 ### list-container
