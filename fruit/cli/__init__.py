@@ -82,7 +82,10 @@ def list_node():
                         help="Node's name")
     args = parser.parse_args()
 
-    headers = {"X-API-Key": CONFIG["api-key"]}
+    headers = {
+        "X-API-Key": CONFIG["api-key"],
+        "Accept-Encoding": "gzip",
+        }
     params = {
         "hostname": args.node_name,
         "email": CONFIG["email"],
@@ -120,7 +123,10 @@ def monitor():
                         help="Path of values (separated by /)")
     args = parser.parse_args()
 
-    headers = {"X-API-Key": CONFIG["api-key"]}
+    headers = {
+        "X-API-Key": CONFIG["api-key"],
+        "Accept-Encoding": "gzip",
+        }
     params = {
         "hostname": args.node_name,
         "id": args.node,
@@ -177,6 +183,7 @@ def run_container():
     headers = {
         "Content-Type": "application/json",
         "X-API-Key": CONFIG["api-key"],
+        "Accept-Encoding": "gzip",
         }
     params = {
         "hostname": args.node_name,
@@ -249,7 +256,10 @@ def list_container():
                         help="Node's name")
     args = parser.parse_args()
 
-    headers = {"X-API-Key": CONFIG["api-key"]}
+    headers = {
+        "X-API-Key": CONFIG["api-key"],
+        "Accept-Encoding": "gzip",
+        }
     params = {
         "hostname": args.node_name,
         "id": args.node,
@@ -321,7 +331,10 @@ def rm_container():
                         help="Container's name in pattern [a-zA-Z0-9\\-_]+")
     args = parser.parse_args()
 
-    headers = {"X-API-Key": CONFIG["api-key"]}
+    headers = {
+        "X-API-Key": CONFIG["api-key"],
+        "Accept-Encoding": "gzip",
+        }
     params = {
         "name": args.container_name,
         "hostname": args.node_name,
