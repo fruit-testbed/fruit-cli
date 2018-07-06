@@ -10,6 +10,7 @@ import yaml
 import subprocess
 import json
 import re
+import yaml
 
 
 CONFIG_FILE = path.join(path.expanduser("~"), ".fruit-cli")
@@ -71,7 +72,7 @@ def config():
     if args.edit:
         subprocess.call([CONFIG["editor"], CONFIG_FILE])
         __load_config()
-    print("--- Your configs in %s ---" % CONFIG_FILE)
+    print("# Your configs in %s" % CONFIG_FILE)
     yaml.safe_dump(CONFIG, stream=sys.stdout, default_flow_style=False)
     sys.stdout.flush()
 
@@ -94,7 +95,8 @@ def list_node():
 
     r = requests.get(url, headers=headers, params=params)
     if r.status_code == 200:
-        print(r.text)
+        yaml.safe_dump(r.json(), stream=sys.stdout, indent=2,
+                       default_flow_style=False)
     elif r.status_code == 404:
         sys.stderr.write("ERROR: Node is not found\n")
         sys.exit(15)
@@ -138,13 +140,12 @@ def monitor():
     if r.status_code == 200:
         sep = ":" if args.path[0] == ":" else "/"
         p = list(filter(lambda s: len(s) > 0, args.path.split(sep)))
-        if len(p) == 0:
-            print(r.text)
-        data = json.loads(r.text)
-        for node in data:
-            data[node] = __resolve(p, data[node])
-        json.dump(data, sys.stdout, indent=2, sort_keys=True)
-        sys.stdout.write("\n")
+        data = r.json()
+        if len(p) > 0:
+            for node in data:
+                data[node] = __resolve(p, data[node])
+        yaml.safe_dump(data, stream=sys.stdout, indent=2,
+                       default_flow_style=False)
     elif r.status_code == 404:
         sys.stderr.write("ERROR: Node is not found\n")
         sys.exit(16)
@@ -270,7 +271,8 @@ def list_container():
     r = requests.get(url, headers=headers, params=params)
     if r.status_code == 200:
         data = __inject_container_state(r.json(), headers, params)
-        json.dump(data, sys.stdout, indent=2, sort_keys=True)
+        yaml.safe_dump(data, stream=sys.stdout, indent=2,
+                       default_flow_style=False)
         sys.stdout.write("\n")
     elif r.status_code == 404:
         sys.stderr.write("ERROR: Node is not found\n")
@@ -370,7 +372,6 @@ Management Commands:
   run-container    Run a container on node(s)
   list-container   List container(s)
   rm-container     Remove a container
-
 """ % app_name)
 
 
