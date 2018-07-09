@@ -116,11 +116,36 @@ def __resolve(keys, data):
     return data
 
 
+def __path_to_array(p):
+    sep = ":" if p[0] == ":" else "/"
+    return list(filter(lambda s: len(s) > 0, p.split(sep)))
+
+
+def __filter(condition, data):
+    if condition is None:
+        return data
+    clauses = re.split(r",\s*", condition)
+    for clause in map(lambda s: re.split(r"\s*=", s, maxsplit=1), clauses):
+        if clause[0] == "":
+            continue
+        p = __path_to_array(clause[0])
+        v = yaml.safe_load(clause[1]) if len(clause) >= 2 else None
+        _data = {}
+        for node in data:
+            if __resolve(p, data[node]) == v:
+                _data[node] = data[node]
+        data = _data
+    return data
+
+
 def monitor():
     parser = argparse.ArgumentParser()
     parser.add_argument("--node", dest="node", type=str)
     parser.add_argument("--name", dest="node_name", type=str,
                         help="Node's name")
+    parser.add_argument("--where", dest="where", type=str,
+                        help="""<path>=<value> clauses (',' separated) to
+                             filter the node""")
     parser.add_argument("path", nargs="?", default="/", type=str,
                         help="Path of values (separated by /)")
     args = parser.parse_args()
@@ -138,9 +163,8 @@ def monitor():
 
     r = requests.get(url, headers=headers, params=params)
     if r.status_code == 200:
-        sep = ":" if args.path[0] == ":" else "/"
-        p = list(filter(lambda s: len(s) > 0, args.path.split(sep)))
-        data = r.json()
+        p = __path_to_array(args.path)
+        data = __filter(args.where, r.json())
         if len(p) > 0:
             for node in data:
                 data[node] = __resolve(p, data[node])
