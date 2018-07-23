@@ -2,10 +2,12 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import print_function
+from builtins import input
 import argparse
 import sys
 import requests
-from os import path
+from os import path, chmod
+import stat
 import yaml
 import subprocess
 import json
@@ -50,17 +52,56 @@ def __load_config():
 
 def register():
     parser = argparse.ArgumentParser()
-    parser.add_argument("email", type=str, nargs=1)
+    parser.add_argument("email", type=str)
     args = parser.parse_args()
 
     url = "%s/user/%s" % (CONFIG["server"], args.email)
 
-    r = requests.get(url)
-    if r.status_code != 200:
-        print("Registration failed (status code: %d)" % r.status_code)
-        sys.exit(9)
-    print("""Registration request has been submitted.
-Please check your mailbox (%s) for further instructions.""" % args.email)
+    r = requests.post(url)
+    if r.status_code == 200:
+        print("""Registration is successful and a verification email has been \
+sent.
+Please check your mailbox (%s) and follow the instructions to get the API-Key.
+""" % args.email)
+        return __setup(args.email)
+    if r.status_code == 201:
+        print("""Registration is successful and a verification email has been \
+sent.
+Please check your mailbox (%s) and follow the instructions to get the API-Key.
+""" % args.email)
+        return __setup(args.email)
+    if r.status_code == 400:
+        sys.stderr.write("Invalid email: %s\n" % args.email)
+    if r.status_code == 403:
+        sys.stderr.write("You have reached maximum number of requests within \
+24-hour.\n")
+    if r.status_code == 405:
+        sys.stderr.write("You have reached maximum number of resending \
+verification email.\n")
+    if r.status_code == 409:
+        sys.stderr.write("Email %s is already registered.\n" % args.email)
+    sys.stderr.write("Registration failed with code: %d\n" % r.status_code)
+    return r.status_code
+
+
+def __setup(email):
+    api_key = input("Please enter your API-Key: ")
+    if api_key is None:
+        return 901
+    api_key = api_key.strip()
+    if  len(api_key.strip()) <= 0:
+        return 902
+    cfg = {
+        "email": email,
+        "api-key": api_key,
+    }
+    with open(CONFIG_FILE, "w") as f:
+        yaml.safe_dump(cfg, stream=f, default_flow_style=False)
+    chmod(CONFIG_FILE, stat.S_IRUSR | stat.S_IWUSR)
+    print("")
+    print("Your API-Key has been saved to your config file:", CONFIG_FILE)
+    print("You can now manage your nodes.")
+    return 0
 
 
 def config():
@@ -391,6 +432,7 @@ def print_usage(app_name):
 
 Management Commands:
   config           Print/edit fruit-cli configuration file
+  register         Register a user
   list-node        List of nodes
   monitor          Print monitoring data
   run-container    Run a container on node(s)
@@ -407,7 +449,7 @@ def main():
     sys.argv.pop(0)
 
     if sys.argv[0] == "register":
-        register()
+        sys.exit(register())
 
     __load_config()
 
