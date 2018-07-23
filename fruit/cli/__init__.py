@@ -50,6 +50,29 @@ def __load_config():
     sys.exit(0)
 
 
+def forget_api_key():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("email", type=str)
+    args = parser.parse_args()
+
+    url = "%s/verify/%s/forget" % (CONFIG["server"], args.email)
+    r = requests.get(url)
+    if r.status_code in [200, 302]:
+        print("An email with API key has been sent your mailbox:", args.email)
+        return 0
+
+    if r.status_code == 400:
+        sys.stderr.write("Invalid email: %s\n" % args.email)
+    if r.status_code == 403:
+        sys.stderr.write("You have reached maximum number of requests within \
+24-hour.\n")
+    if r.status_code == 405:
+        sys.stderr.write("You have reached maximum number of resending \
+verification email.\n")
+    sys.stderr.write("Error with code %d\n" % r.status_code)
+    return r.status_code
+
+
 def register():
     parser = argparse.ArgumentParser()
     parser.add_argument("email", type=str)
@@ -433,6 +456,7 @@ def print_usage(app_name):
 Management Commands:
   config           Print/edit fruit-cli configuration file
   register         Register a user
+  forget-api-key   Re-send user's API key to email
   list-node        List of nodes
   monitor          Print monitoring data
   run-container    Run a container on node(s)
@@ -450,6 +474,8 @@ def main():
 
     if sys.argv[0] == "register":
         sys.exit(register())
+    if sys.argv[0] == "forget-api-key":
+        sys.exit(forget_api_key())
 
     __load_config()
 
