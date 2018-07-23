@@ -450,6 +450,18 @@ def rm_container():
         sys.exit(14)
 
 
+def list_ssh_key():
+    pass
+
+
+def add_ssh_key():
+    pass
+
+
+def rm_ssh_key():
+    pass
+
+
 def print_usage(app_name):
         print("""Usage: %s COMMAND
 
@@ -462,6 +474,9 @@ Management Commands:
   run-container    Run a container on node(s)
   list-container   List container(s)
   rm-container     Remove a container
+  list-ssh-key     List authorized SSH keys
+  add-ssh-key      Add a new authorized SSH key
+  rm-ssh-key       Remove an authorized SSH key
 """ % app_name)
 
 
@@ -491,6 +506,12 @@ def main():
         list_container()
     elif sys.argv[0] == "rm-container":
         rm_container()
+    elif sys.argv[0] == "list-ssh-key":
+        list_ssh_key()
+    elif sys.argv[0] == "add-ssh-key":
+        add_ssh_key()
+    elif sys.argv[0] == "rm-ssh-key":
+        rm_ssh_key()
     else:
         print("Invalid command:", sys.argv[0], end="\n\n")
         print_usage(app_name)
