@@ -451,7 +451,34 @@ def rm_container():
 
 
 def list_ssh_key():
-    pass
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--node", dest="node", type=str,
+                        help="Remove container from a specific node")
+    parser.add_argument("--name", dest="node_name", type=str,
+                        help="Node's name")
+    args = parser.parse_args()
+
+    headers = {
+        "X-API-Key": CONFIG["api-key"],
+        "Accept-Encoding": "gzip",
+        }
+    params = {
+        "hostname": args.node_name,
+        "id": args.node,
+        "email": CONFIG["email"],
+        }
+    url = "%s/user/ssh-key" % CONFIG["server"]
+    r = requests.get(url, headers=headers, params=params)
+    if r.status_code == 200:
+        yaml.safe_dump(r.json(), stream=sys.stdout, indent=2,
+                       default_flow_style=False)
+    elif r.status_code == 404:
+        sys.stderr.write("ERROR: Node is not found\n")
+        sys.exit(15)
+    else:
+        sys.stderr.write("ERROR: Listing SSH keys failed (status code: %d)\n"
+                         % r.status_code)
+        sys.exit(10)
 
 
 def add_ssh_key():
