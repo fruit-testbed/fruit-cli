@@ -120,7 +120,7 @@ def __setup(email):
     if api_key is None:
         return 901
     api_key = api_key.strip()
-    if  len(api_key.strip()) <= 0:
+    if len(api_key.strip()) <= 0:
         return 902
     cfg = {
         "email": email,
@@ -540,8 +540,8 @@ activated.")
         sys.stderr.write("ERROR: Node is not found\n")
         sys.exit(3)
     else:
-        sys.stderr.write("ERROR: Failed storing the SSH key (status code: %d)\n"
-                         % r.status_code)
+        sys.stderr.write("ERROR: Failed storing the SSH key (status code: %d)\
+\n" % r.status_code)
         sys.exit(4)
 
 
@@ -591,7 +591,7 @@ def rm_ssh_key():
         }
     url = "%s/user/ssh-key" % CONFIG["server"]
     r = requests.delete(url, data=json.dumps(ssh_key), headers=headers,
-                     params=params)
+                        params=params)
     if r.status_code == 200:
         print("SSH Key has been deleted.")
     elif r.status_code == 404:
