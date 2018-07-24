@@ -546,7 +546,61 @@ activated.")
 
 
 def rm_ssh_key():
-    pass
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--keyfile", dest="keyfile", type=str,
+                        help="File of public key to be added")
+    parser.add_argument("--key", dest="key", type=str,
+                        help="Public key to be added")
+    parser.add_argument("--index", dest="index", type=int,
+                        help="Index of public key")
+    parser.add_argument("--node", dest="node", type=str,
+                        help="Remove container from a specific node")
+    parser.add_argument("--name", dest="node_name", type=str,
+                        help="Node's name")
+    args = parser.parse_args()
+
+    if args.keyfile is None and args.key is None and args.index is None:
+        return
+    if args.key is None and args.keyfile is not None:
+        with open(args.keyfile) as f:
+            args.key = f.read().strip()
+
+    ssh_key = {"type": "", "key": "", "index": args.index}
+    if args.key is not None:
+        parts = re.split(r"\s+", args.key)
+        if len(parts) < 2:
+            sys.stderr.write("Invalid key.")
+            sys.exit(1)
+        if parts[0] not in SSH_KEY_TYPES:
+            sys.stderr.write("Invalid key type:", parts[0])
+            sys.exit(2)
+        ssh_key["type"] = parts[0]
+        ssh_key["key"] = parts[1]
+        if len(parts) >= 3:
+            ssh_key["comment"] = parts[2]
+
+    headers = {
+        "Content-Type": "application/json",
+        "X-API-Key": CONFIG["api-key"],
+        "Accept-Encoding": "gzip",
+        }
+    params = {
+        "hostname": args.node_name,
+        "id": args.node,
+        "email": CONFIG["email"],
+        }
+    url = "%s/user/ssh-key" % CONFIG["server"]
+    r = requests.delete(url, data=json.dumps(ssh_key), headers=headers,
+                     params=params)
+    if r.status_code == 200:
+        print("SSH Key has been deleted.")
+    elif r.status_code == 404:
+        sys.stderr.write("ERROR: Node is not found\n")
+        sys.exit(3)
+    else:
+        sys.stderr.write("ERROR: Failed deleting the SSH key (status code: %d)\
+\n" % r.status_code)
+        sys.exit(4)
 
 
 def print_usage(app_name):
