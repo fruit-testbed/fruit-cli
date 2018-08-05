@@ -60,8 +60,19 @@ editor: vi
 
 ## Commands
 
-There are six commands: **config**, **list-node**, **monitor**, **list-container**,
-**run-container**, and **rm-container**.
+The commands are: **register**, **config**, **forget-api-key**,
+**list-node**, **monitor**, **list-container**, **run-container**,
+**rm-container**, **list-ssh-key**, **add-ssh-key**, **rm-ssh-key**.
+
+
+### register
+
+`fruit-cli register <email-address>`
+
+**register** registers a new email-address.
+
+If the address has not been registered, then a confirmation email will be sent to
+the address. Otherwise, an email containing the account information will be sent.
 
 
 ### config
@@ -71,6 +82,14 @@ There are six commands: **config**, **list-node**, **monitor**, **list-container
 **config** prints **fruit-cli**'s configuration to the standard output.
 
 If option `--edit` is given, then it opens the config file (`~/.fruit-cli`) with a text editor.
+
+
+### forget-api-key
+
+`fruit-cli forget-api-key <email-address>`
+
+**forget-api-key** requests the management server to send the API key to the
+email address if it is registered.
 
 
 ### list-node
@@ -230,3 +249,40 @@ fruit-cli rm-container --node pi123 nginx
 > minutes until the container has been removed from target node by **fruit-agent**.
 
 If option `--name <hostname>` is given, then it only includes nodes whose hostname is equal to `<hostname>`. You can use `*` for pattern matching.
+
+
+### list-ssh-key
+
+`list-ssh-key [--node <id>] [--name <hostname>]`
+
+**list-ssh-key** lists all registered ssh public keys.
+
+
+### add-ssh-key
+
+`add-ssh-key [--keyfile <public-key-file>] [--node <id>] [--name <hostname>]`
+
+**add-ssh-key** adds a public key available in file `<public-key-file>` to the
+management server. In default, the public key will be applied on all nodes owned
+by the user.
+
+If option `--node <id>` is given, then the public key is only applied to the node
+with ID=`<id>`.
+
+If option `--name <hostname>` is given, then the public key is only applied to the
+node whose hostname=`<hostname>`.
+
+
+### rm-ssh-key
+
+`rm-ssh-key [--keyfile <public-key-file>] [--node <id>] [--name <hostname>]`
+
+**rm-ssh-key** removes a public key specified in file `<public-key-file>`
+from the management server. In default, the public key will be removed from all
+nodes owned by the user.
+
+If option `--node <id>` is given, then the public key is only removed from the node
+with ID=`<id>`.
+
+If option `--name <hostname>` is given, then the public key is only removed from
+the node whose hostname=`<hostname>`.
