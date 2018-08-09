@@ -47,7 +47,7 @@ the login information to access Fruit Management APIs. It has two mandatory fiel
 There two optional fields:
 
 * `editor`, the editor application used to edit the config file (default: `nano`).
-* `server-url`, the management server's endpoint (default: `https://fruit-testbed.org/api`).
+* `server`, the management server's endpoint (default: `https://fruit-testbed.org/api`).
 
 Example:
 
