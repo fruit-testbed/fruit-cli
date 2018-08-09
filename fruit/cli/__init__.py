@@ -6,6 +6,7 @@ from builtins import input
 import argparse
 import sys
 import requests
+import os
 from os import path, chmod
 import stat
 import yaml
@@ -14,12 +15,19 @@ import json
 import re
 import yaml
 
+# def __debug_requests():
+#     import logging
+#     import httplib
+#     httplib.HTTPConnection.debuglevel = 1
+#     logging.basicConfig()
+#     logger = logging.getLogger('requests.packages.urllib3')
+#     logger.setLevel(logging.DEBUG)
+#     logger.propagate = True
+# __debug_requests()
 
-CONFIG_FILE = path.join(path.expanduser("~"), ".fruit-cli")
-CONFIG = {
-    "server": "https://fruit-testbed.org/api",
-    "editor": "nano",
-    }
+CONFIG = None  ## initialized by __load_config()
+FRUIT_CLI_CONFIG_VAR = 'FRUIT_CLI_CONFIG'
+
 SSH_KEY_TYPES = [
     "ecdsa-sha2-nistp256",
     "ecdsa-sha2-nistp384",
@@ -27,7 +35,13 @@ SSH_KEY_TYPES = [
     "ssh-ed25519",
     "ssh-dss",
     "ssh-rsa",
-    ]
+]
+
+
+def __config_file():
+    return \
+        os.environ.get(FRUIT_CLI_CONFIG_VAR, None) or \
+        path.join(path.expanduser("~"), ".fruit-cli")
 
 
 def __container_name_type(name, pattern=re.compile(r"^[a-zA-Z0-9_\-]+$")):
@@ -36,26 +50,47 @@ def __container_name_type(name, pattern=re.compile(r"^[a-zA-Z0-9_\-]+$")):
     return name
 
 
-def __load_config():
-    if path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE) as f:
-            cfg = yaml.safe_load(f)
-            for key in cfg.keys():
-                CONFIG[key] = cfg[key]
-            return
-    print("Config file %s does not exist." % CONFIG_FILE)
+def __read_config():
+    filename = __config_file()
+    if path.exists(filename):
+        with open(filename) as f:
+            return yaml.safe_load(f)
+    return None
+
+def __write_config(cfg):
+    filename = __config_file()
+    with open(filename, "w") as f:
+        yaml.safe_dump(cfg, stream=f, default_flow_style=False)
+    chmod(filename, stat.S_IRUSR | stat.S_IWUSR)
+
+
+def __load_config(create_if_missing = True):
+    global CONFIG
+    cfg = __read_config()
+    if cfg is not None:
+        CONFIG = {
+            "server": "https://fruit-testbed.org/api",
+            "editor": "nano",
+        }
+        CONFIG.update(cfg)
+        return
+
+    print("Config file %s does not exist." % filename)
     try:
         input("Press Enter to create one...")
     except EOFError:
         return
-    cfg = {
+
+    __write_config({
         "email": "<your-email-address>",
         "api-key": "<your-api-key>",
-    }
-    with open(CONFIG_FILE, "w") as f:
-        yaml.safe_dump(cfg, stream=f, default_flow_style=False)
-    subprocess.call(["nano", CONFIG_FILE])
+    })
+    __edit_config_interactively()
     sys.exit(0)
+
+
+def __edit_config_interactively():
+    subprocess.call([CONFIG["editor"], __config_file()])
 
 
 def forget_api_key():
@@ -89,13 +124,7 @@ def register():
     url = "%s/user/%s" % (CONFIG["server"], args.email)
 
     r = requests.post(url)
-    if r.status_code == 200:
-        print("""Registration is successful and a verification email has been \
-sent.
-Please check your mailbox (%s) and follow the instructions to get the API-Key.
-""" % args.email)
-        return __setup(args.email)
-    if r.status_code == 201:
+    if r.status_code >= 200 and r.status_code <= 299:
         print("""Registration is successful and a verification email has been \
 sent.
 Please check your mailbox (%s) and follow the instructions to get the API-Key.
@@ -122,15 +151,16 @@ def __setup(email):
     api_key = api_key.strip()
     if len(api_key.strip()) <= 0:
         return 902
-    cfg = {
+
+    cfg = __read_config() or {}
+    cfg.update({
         "email": email,
         "api-key": api_key,
-    }
-    with open(CONFIG_FILE, "w") as f:
-        yaml.safe_dump(cfg, stream=f, default_flow_style=False)
-    chmod(CONFIG_FILE, stat.S_IRUSR | stat.S_IWUSR)
+    })
+    __write_config(cfg)
+
     print("")
-    print("Your API-Key has been saved to your config file:", CONFIG_FILE)
+    print("Your API-Key has been saved to your config file:", __config_file())
     print("You can now manage your nodes.")
     return 0
 
@@ -142,9 +172,9 @@ def config():
     args = parser.parse_args()
 
     if args.edit:
-        subprocess.call([CONFIG["editor"], CONFIG_FILE])
+        __edit_config_interactively()
         __load_config()
-    print("# Your configs in %s" % CONFIG_FILE)
+    print("# Your configs in %s" % __config_file())
     yaml.safe_dump(CONFIG, stream=sys.stdout, default_flow_style=False)
     sys.stdout.flush()
 
@@ -604,7 +634,10 @@ def rm_ssh_key():
 
 
 def print_usage(app_name):
-        print("""Usage: %s COMMAND
+    print("""Usage: %(app_name)s COMMAND
+
+Your configuration file location: %(config_file)s
+Override its location with the %(config_file_var)s environment variable.
 
 Management Commands:
   config           Print/edit fruit-cli configuration file
@@ -618,7 +651,11 @@ Management Commands:
   list-ssh-key     List authorized SSH keys
   add-ssh-key      Add a new authorized SSH key
   rm-ssh-key       Remove an authorized SSH key
-""" % app_name)
+""" % {
+    'app_name': app_name,
+    'config_file': __config_file(),
+    'config_file_var': FRUIT_CLI_CONFIG_VAR,
+})
 
 
 def main():
@@ -627,6 +664,12 @@ def main():
         print_usage(app_name)
         sys.exit(1)
     sys.argv.pop(0)
+
+    # Try loading the configuration at this point in order to allow
+    # overriding of server api URL for e.g. register() and
+    # forget_api_key().
+    #
+    __load_config(create_if_missing = False)
 
     if sys.argv[0] == "register":
         sys.exit(register())
