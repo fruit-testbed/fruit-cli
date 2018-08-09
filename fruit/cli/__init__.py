@@ -25,7 +25,7 @@ import yaml
 #     logger.propagate = True
 # __debug_requests()
 
-CONFIG = None  ## initialized by __load_config()
+CONFIG = None  # initialized by __load_config()
 FRUIT_CLI_CONFIG_VAR = 'FRUIT_CLI_CONFIG'
 
 SSH_KEY_TYPES = [
@@ -57,6 +57,7 @@ def __read_config():
             return yaml.safe_load(f)
     return None
 
+
 def __write_config(cfg):
     filename = __config_file()
     with open(filename, "w") as f:
@@ -64,7 +65,7 @@ def __write_config(cfg):
     chmod(filename, stat.S_IRUSR | stat.S_IWUSR)
 
 
-def __load_config(create_if_missing = True):
+def __load_config(create_if_missing=True):
     global CONFIG
     cfg = __read_config()
     if cfg is not None:
@@ -651,11 +652,9 @@ Management Commands:
   list-ssh-key     List authorized SSH keys
   add-ssh-key      Add a new authorized SSH key
   rm-ssh-key       Remove an authorized SSH key
-""" % {
-    'app_name': app_name,
-    'config_file': __config_file(),
-    'config_file_var': FRUIT_CLI_CONFIG_VAR,
-})
+""" % {'app_name': app_name,
+       'config_file': __config_file(),
+       'config_file_var': FRUIT_CLI_CONFIG_VAR})
 
 
 def main():
@@ -669,7 +668,7 @@ def main():
     # overriding of server api URL for e.g. register() and
     # forget_api_key().
     #
-    __load_config(create_if_missing = False)
+    __load_config(create_if_missing=False)
 
     if sys.argv[0] == "register":
         sys.exit(register())
