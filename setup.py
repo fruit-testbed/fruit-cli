@@ -27,7 +27,7 @@ setup(
     packages=["fruit", "fruit/cli"],
     url="https://github.com/fruit-testbed/fruit-cli/",
     description="Command-line application of Fruit cluster management",
-    install_requires=["requests", "PyYAML"],
+    install_requires=["requests", "PyYAML", "future"],
     python_requires=">=2.7, <4",
     scripts=["bin/fruit-cli"],
 )
