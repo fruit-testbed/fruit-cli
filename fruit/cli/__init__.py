@@ -543,7 +543,7 @@ def add_ssh_key():
         sys.stderr.write("Invalid key.")
         sys.exit(1)
     if parts[0] not in SSH_KEY_TYPES:
-        sys.stderr.write("Invalid key type:", parts[0])
+        sys.stderr.write("Invalid key type: " + repr(parts[0]))
         sys.exit(2)
     ssh_key = {
         "type": parts[0],
