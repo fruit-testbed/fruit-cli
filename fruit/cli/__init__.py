@@ -579,9 +579,9 @@ activated.")
 def rm_ssh_key():
     parser = argparse.ArgumentParser()
     parser.add_argument("--keyfile", dest="keyfile", type=str,
-                        help="File of public key to be added")
+                        help="File of public key to be removed")
     parser.add_argument("--key", dest="key", type=str,
-                        help="Public key to be added")
+                        help="Public key to be removed")
     parser.add_argument("--index", dest="index", type=int,
                         help="Index of public key")
     parser.add_argument("--node", dest="node", type=str,
