@@ -2,12 +2,9 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import print_function
-from builtins import input
 import argparse
 import sys
-import requests
 import os
-from os import path, chmod
 import stat
 import yaml
 import subprocess
@@ -15,83 +12,49 @@ import json
 import re
 import yaml
 
-# def __debug_requests():
-#     import logging
-#     import httplib
-#     httplib.HTTPConnection.debuglevel = 1
-#     logging.basicConfig()
-#     logger = logging.getLogger('requests.packages.urllib3')
-#     logger.setLevel(logging.DEBUG)
-#     logger.propagate = True
-# __debug_requests()
-
-CONFIG = None  # initialized by __load_config()
 FRUIT_CLI_CONFIG_VAR = 'FRUIT_CLI_CONFIG'
 
-SSH_KEY_TYPES = [
-    "ecdsa-sha2-nistp256",
-    "ecdsa-sha2-nistp384",
-    "ecdsa-sha2-nistp521",
-    "ssh-ed25519",
-    "ssh-dss",
-    "ssh-rsa",
-]
 
 
-def __config_file():
+class Config:
+    def __init__(self):
+        self.server = DEFAULT_SERVER
+        self.api_key = None
+        self.email = None
+
+    def load(self, filename):
+        if os.path.exists(filename):
+            with open(filename) as f:
+                blob = yaml.safe_load(f)
+        else:
+            blob = {}
+        if 'server' in blob: self.server = blob['server']
+        self.api_key = blob.get('api-key', None)
+        self.email = blob.get('email', None)
+
+    def dump(self, filename):
+        blob = {}
+        if self.server != DEFAULT_SERVER: blob['server'] = self.server
+        if self.api_key: blob['api-key'] = self.api_key
+        if self.email: blob['email'] = self.email
+        with open(filename, 'wt') as f:
+            yaml.safe_dump(blob, stream=f, default_flow_style=False)
+        os.chmod(filename, stat.S_IRUSR | stat.S_IWUSR)
+
+
+def config_filename():
     return \
         os.environ.get(FRUIT_CLI_CONFIG_VAR, None) or \
-        path.join(path.expanduser("~"), ".fruit-cli")
+        os.path.join(os.path.expanduser("~"), ".fruit-cli")
 
 
-def __container_name_type(name, pattern=re.compile(r"^[a-zA-Z0-9_\-]+$")):
+def container_name(name):
+    '''Raises argparse.ArgumentTypeError if name is not a string or does
+       not match CONTAINER_NAME_RE; otherwise, returns name. Used as a
+       type during argument parsing.'''
     if not isinstance(name, str) or not pattern.match(name):
         raise argparse.ArgumentTypeError
     return name
-
-
-def __read_config():
-    filename = __config_file()
-    if path.exists(filename):
-        with open(filename) as f:
-            return yaml.safe_load(f)
-    return None
-
-
-def __write_config(cfg):
-    filename = __config_file()
-    with open(filename, "w") as f:
-        yaml.safe_dump(cfg, stream=f, default_flow_style=False)
-    chmod(filename, stat.S_IRUSR | stat.S_IWUSR)
-
-
-def __load_config(create_if_missing=True):
-    global CONFIG
-    cfg = __read_config()
-    if cfg is not None:
-        CONFIG = {
-            "server": "https://fruit-testbed.org/api",
-            "editor": "nano",
-        }
-        CONFIG.update(cfg)
-        return
-
-    print("Config file %s does not exist." % filename)
-    try:
-        input("Press Enter to create one...")
-    except EOFError:
-        return
-
-    __write_config({
-        "email": "<your-email-address>",
-        "api-key": "<your-api-key>",
-    })
-    __edit_config_interactively()
-    sys.exit(0)
-
-
-def __edit_config_interactively():
-    subprocess.call([CONFIG["editor"], __config_file()])
 
 
 def forget_api_key():
@@ -303,7 +266,7 @@ def run_container():
                         the container""")
     parser.add_argument("-d", "--device", dest="devices", type=str,
                         help="Bind host device(s) to the container")
-    parser.add_argument("container_name", type=__container_name_type,
+    parser.add_argument("container_name", type=container_name,
                         help="Pattern [a-zA-Z0-9\\-_]+")
     parser.add_argument("container_image", type=str)
     args = parser.parse_args()
@@ -439,7 +402,7 @@ def __inject_node_container_state(data, containers):
         for container in containers:
             for name in container["Names"]:
                 name = name.lstrip("/")
-                name, ext = path.splitext(name)
+                name, ext = os.path.splitext(name)
                 if ext == ".fruit":
                     if name in data:
                         data[name]["state"] = container["State"]
@@ -456,7 +419,7 @@ def rm_container():
                         help="Remove container from a specific node")
     parser.add_argument("--name", dest="node_name", type=str,
                         help="Node's name")
-    parser.add_argument("container_name", type=__container_name_type,
+    parser.add_argument("container_name", type=container_name,
                         help="Container's name in pattern [a-zA-Z0-9\\-_]+")
     args = parser.parse_args()
 
