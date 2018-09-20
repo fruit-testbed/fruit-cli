@@ -12,20 +12,22 @@ import json
 import re
 import yaml
 
-FRUIT_CLI_CONFIG_VAR = 'FRUIT_CLI_CONFIG'
+import fruit.api as fa
 
+FRUIT_CLI_CONFIG_VAR = 'FRUIT_CLI_CONFIG'
+FRUIT_API_SERVER_VAR = 'FRUIT_API_SERVER'
 
 
 class Config:
     def __init__(self):
-        self.server = DEFAULT_SERVER
+        self.server = os.environ.get(FRUIT_API_SERVER_VAR, fa.DEFAULT_SERVER)
         self.api_key = None
         self.email = None
 
     def load(self, filename):
         if os.path.exists(filename):
             with open(filename) as f:
-                blob = yaml.safe_load(f)
+                blob = yaml.safe_load(f) or {}
         else:
             blob = {}
         if 'server' in blob: self.server = blob['server']
@@ -34,12 +36,39 @@ class Config:
 
     def dump(self, filename):
         blob = {}
-        if self.server != DEFAULT_SERVER: blob['server'] = self.server
+        if self.server != fa.DEFAULT_SERVER: blob['server'] = self.server
         if self.api_key: blob['api-key'] = self.api_key
         if self.email: blob['email'] = self.email
         with open(filename, 'wt') as f:
             yaml.safe_dump(blob, stream=f, default_flow_style=False)
         os.chmod(filename, stat.S_IRUSR | stat.S_IWUSR)
+
+    def __enter__(self):
+        return fa.FruitApi(self.server, self.email, self.api_key)
+
+    def __exit__(self, type, exn, tb):
+        if exn is not None:
+            if isinstance(exn, fa.FruitApiError):
+                sys.stderr.write('-' * 75 + '\n' +
+                                 'ERROR: %s %s\n' % (exn.response.status_code,
+                                                     exn.response.reason))
+                try:
+                    blob = exn.response.json()
+                    title = blob.get('title', None)
+                    detail = blob.get('detail', None)
+                    if title:
+                        sys.stderr.write('       %s\n' % (title,))
+                    if detail:
+                        sys.stderr.write('       %s\n' % (detail,))
+                    if os.environ.get('FRUIT_API_DEBUG', ''):
+                        import json
+                        sys.stderr.write(json.dumps(blob, indent=2))
+                except:
+                    pass
+                sys.stderr.write('-' * 75 + '\n')
+                sys.exit(1)
+            else:
+                raise
 
 
 def config_filename():
@@ -48,621 +77,398 @@ def config_filename():
         os.path.join(os.path.expanduser("~"), ".fruit-cli")
 
 
-def container_name(name):
-    '''Raises argparse.ArgumentTypeError if name is not a string or does
-       not match CONTAINER_NAME_RE; otherwise, returns name. Used as a
-       type during argument parsing.'''
-    if not isinstance(name, str) or not pattern.match(name):
-        raise argparse.ArgumentTypeError
-    return name
+def register(config, args):
+    with config as api:
+        api.register(args.email)
+
+        print('A verification email has been sent to %s.' % (args.email,))
+        print('Please check your mailbox and follow the instructions to get the API-Key.')
+        print()
+
+        while True:
+            try:
+                api_key = input("Please enter your API-Key: ")
+            except EOFError:
+                sys.exit(1)
+
+            api_key = api_key.strip()
+            if not api_key:
+                continue
+
+            config.email = args.email
+            config.api_key = api_key
+            config.dump(args.config_filename)
+            break
+
+        print()
+        print('Your API-Key has been saved to your config file:', args.config_filename)
+        print('You can now manage your nodes.')
 
 
-def forget_api_key():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("email", type=str)
-    args = parser.parse_args()
-
-    url = "%s/verify/%s/forget" % (CONFIG["server"], args.email)
-    r = requests.get(url)
-    if r.status_code in [200, 302]:
-        print("An email with API key has been sent your mailbox:", args.email)
-        return 0
-
-    if r.status_code == 400:
-        sys.stderr.write("Invalid email: %s\n" % args.email)
-    if r.status_code == 403:
-        sys.stderr.write("You have reached maximum number of requests within \
-24-hour.\n")
-    if r.status_code == 405:
-        sys.stderr.write("You have reached maximum number of resending \
-verification email.\n")
-    sys.stderr.write("Error with code %d\n" % r.status_code)
-    return r.status_code
+def resend_api_key(config, args):
+    with config as api:
+        api.resend_api_key(args.email)
+        print('An email with API key has been sent your mailbox:', args.email)
 
 
-def register():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("email", type=str)
-    args = parser.parse_args()
-
-    url = "%s/user/%s" % (CONFIG["server"], args.email)
-
-    r = requests.post(url)
-    if r.status_code >= 200 and r.status_code <= 299:
-        print("""Registration is successful and a verification email has been \
-sent.
-Please check your mailbox (%s) and follow the instructions to get the API-Key.
-""" % args.email)
-        return __setup(args.email)
-    if r.status_code == 400:
-        sys.stderr.write("Invalid email: %s\n" % args.email)
-    if r.status_code == 403:
-        sys.stderr.write("You have reached maximum number of requests within \
-24-hour.\n")
-    if r.status_code == 405:
-        sys.stderr.write("You have reached maximum number of resending \
-verification email.\n")
-    if r.status_code == 409:
-        sys.stderr.write("Email %s is already registered.\n" % args.email)
-    sys.stderr.write("Registration failed with code: %d\n" % r.status_code)
-    return r.status_code
-
-
-def __setup(email):
-    api_key = input("Please enter your API-Key: ")
-    if api_key is None:
-        return 901
-    api_key = api_key.strip()
-    if len(api_key.strip()) <= 0:
-        return 902
-
-    cfg = __read_config() or {}
-    cfg.update({
-        "email": email,
-        "api-key": api_key,
-    })
-    __write_config(cfg)
-
-    print("")
-    print("Your API-Key has been saved to your config file:", __config_file())
-    print("You can now manage your nodes.")
-    return 0
-
-
-def config():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--edit", action="store_const", const=True,
-                        default=False, help="Edit config file")
-    args = parser.parse_args()
-
-    if args.edit:
-        __edit_config_interactively()
-        __load_config()
-    print("# Your configs in %s" % __config_file())
-    yaml.safe_dump(CONFIG, stream=sys.stdout, default_flow_style=False)
-    sys.stdout.flush()
-
-
-def list_node():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--name", dest="node_name", type=str,
-                        help="Node's name")
-    args = parser.parse_args()
-
-    headers = {
-        "X-API-Key": CONFIG["api-key"],
-        "Accept-Encoding": "gzip",
-        }
-    params = {
-        "hostname": args.node_name,
-        "email": CONFIG["email"],
-        }
-    url = url = "%s/node" % CONFIG["server"]
-
-    r = requests.get(url, headers=headers, params=params)
-    if r.status_code == 200:
-        yaml.safe_dump(r.json(), stream=sys.stdout, indent=2,
-                       default_flow_style=False)
-    elif r.status_code == 404:
-        sys.stderr.write("ERROR: Node is not found\n")
-        sys.exit(15)
+def _pp_yaml(args, blob):
+    if args.json:
+        json.dump(blob, sys.stdout, indent=2)
+        sys.stdout.write('\n')
     else:
-        sys.stderr.write("ERROR: Listing nodes failed (status code: %d)\n"
-                         % r.status_code)
-        sys.exit(10)
+        yaml.safe_dump(blob, stream=sys.stdout, indent=2, default_flow_style=False)
 
 
-def __resolve(keys, data):
-    for key in keys:
-        if key == "":
-            continue
-        if not isinstance(data, dict) or key not in data:
-            return None
-        data = data[key]
-    return data
+def list_nodes(config, args):
+    with config as api:
+        _pp_yaml(args, api.list_nodes(group_name=args.group))
 
 
-def __path_to_array(p):
-    sep = ":" if p[0] == ":" else "/"
-    return list(filter(lambda s: len(s) > 0, p.split(sep)))
+def monitor(config, args):
+    ## Previously, this subcommand supported a query language for
+    ## extracting portions of the input. Instead, users could try
+    ## tools like `jq` https://stedolan.github.io/jq/.
+    with config as api:
+        _pp_yaml(args, api.get_monitoring_data(group_name=args.group, node_id=args.node))
 
 
-def __filter(condition, data):
-    if condition is None:
-        return data
-    clauses = re.split(r",\s*", condition)
-    for clause in map(lambda s: re.split(r"\s*=", s, maxsplit=1), clauses):
-        if clause[0] == "":
-            continue
-        p = __path_to_array(clause[0])
-        v = yaml.safe_load(clause[1]) if len(clause) >= 2 else None
-        _data = {}
-        for node in data:
-            if __resolve(p, data[node]) == v:
-                _data[node] = data[node]
-        data = _data
-    return data
+def run_container(config, args):
+    with config as api:
+        spec = fa.ContainerSpec(args.name,
+                                args.image,
+                                command=args.command,
+                                port=args.publish or [],
+                                volume=args.volume or [],
+                                kernel_module=args.kernel_module or [],
+                                device_tree=args.device_tree or [],
+                                device=args.device or [])
+        _pp_yaml(args, api.run_container(spec, group_name=args.group, node_id=args.node))
 
 
-def monitor():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--node", dest="node", type=str)
-    parser.add_argument("--name", dest="node_name", type=str,
-                        help="Node's name")
-    parser.add_argument("--where", dest="where", type=str,
-                        help="""<path>=<value> clauses (',' separated) to
-                             filter the node""")
-    parser.add_argument("path", nargs="?", default="/", type=str,
-                        help="Path of values (separated by /)")
-    args = parser.parse_args()
+def list_container(config, args):
+    with config as api:
+        node_map = api.list_containers(group_name=args.group, node_id=args.node)
 
-    headers = {
-        "X-API-Key": CONFIG["api-key"],
-        "Accept-Encoding": "gzip",
-        }
-    params = {
-        "hostname": args.node_name,
-        "id": args.node,
-        "email": CONFIG["email"],
-        }
-    url = "%s/monitor" % CONFIG["server"]
+        # Modify `node_map` to add information on which nodes are
+        # successfully running each container.
+        #
+        # TODO: make more robust in traversing the `data` blobs
+        all_data = api.get_monitoring_data(group_name=args.group, node_id=args.node)
+        for (node_id, data) in all_data.items():
+            if node_id in node_map:
+                stub = node_map[node_id]
+                if isinstance(data, dict) and 'docker' in data and 'containers' in data['docker']:
+                    containers = data['docker']['containers']
+                    if isinstance(containers, list):
+                        for container in containers:
+                            for name in container["Names"]: ## !! from the node itself
+                                name, ext = os.path.splitext(name.lstrip('/'))
+                                if ext == '.fruit':
+                                    if name in stub:
+                                        stub[name]['state'] = container["State"]
+                                        stub[name]['status'] = container["Status"]
+                                    break
+                    for name in stub:
+                        if 'state' not in stub[name]:
+                            stub[name]['state'] = 'absent'
 
-    r = requests.get(url, headers=headers, params=params)
-    if r.status_code == 200:
-        p = __path_to_array(args.path)
-        data = __filter(args.where, r.json())
-        if len(p) > 0:
-            for node in data:
-                data[node] = __resolve(p, data[node])
-        yaml.safe_dump(data, stream=sys.stdout, indent=2,
-                       default_flow_style=False)
-    elif r.status_code == 404:
-        sys.stderr.write("ERROR: Node is not found\n")
-        sys.exit(16)
-    else:
-        sys.stderr.write(
-            "ERROR: Failed getting monitoring data (status code: %d)\n"
-            % r.status_code)
-        sys.exit(11)
+        _pp_yaml(args, node_map)
 
 
-def run_container():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--node", dest="node", type=str,
-                        help="Target node")
-    parser.add_argument("--name", dest="node_name", type=str,
-                        help="Target node's name")
-    parser.add_argument("-p", dest="ports", type=str,
-                        help="Publish the container's port(s) to the host")
-    parser.add_argument("-v", dest="volumes", type=str,
-                        help="Bind host volume(s) to the container")
-    parser.add_argument("-c", "--command", dest="command", type=str,
-                        help="Command that will be run in the container")
-    parser.add_argument("-k", "--kernel-module", dest="kernel_modules",
-                        type=str, help="""Load kernel module(s) before
-                        starting the container""")
-    parser.add_argument("-dt", "--device-tree", dest="device_trees", type=str,
-                        help="""Load host device-tree(s) before starting
-                        the container""")
-    parser.add_argument("-d", "--device", dest="devices", type=str,
-                        help="Bind host device(s) to the container")
-    parser.add_argument("container_name", type=container_name,
-                        help="Pattern [a-zA-Z0-9\\-_]+")
-    parser.add_argument("container_image", type=str)
-    args = parser.parse_args()
-
-    headers = {
-        "Content-Type": "application/json",
-        "X-API-Key": CONFIG["api-key"],
-        "Accept-Encoding": "gzip",
-        }
-    params = {
-        "hostname": args.node_name,
-        "id": args.node,
-        "email": CONFIG["email"],
-        }
-    url = "%s/container" % CONFIG["server"]
-
-    specification = {
-        "name": args.container_name,
-        "image": args.container_image,
-        }
-    if args.command is not None:
-        try:
-            specification["command"] = json.loads(args.command)
-        except ValueError:
-            specification["command"] = [args.command]
-    if args.ports is not None:
-        ports = list(filter(lambda s: len(s) > 0,
-                     map(lambda p: p.strip(), args.ports.split(","))))
-        if len(ports) > 0:
-            specification['port'] = ports
-    if args.volumes is not None:
-        volumes = list(filter(lambda s: len(s) > 0,
-                       map(lambda p: p.strip(), args.volumes.split(","))))
-        if len(volumes) > 0:
-            specification['volume'] = volumes
-    if args.kernel_modules is not None:
-        mods = list(filter(lambda m: len(m) > 0,
-                    map(lambda s: s.strip(), args.kernel_modules.split(","))))
-        if len(mods) > 0:
-            specification['kernel-module'] = mods
-    if args.device_trees is not None:
-        dts = list(filter(lambda d: len(d) > 0,
-                   map(lambda s: s.strip(), args.device_trees.split(","))))
-        if len(dts) > 0:
-            specification['device-tree'] = dts
-    if args.devices is not None:
-        devs = list(filter(lambda d: len(d) > 0,
-                    map(lambda s: s.strip(), args.devices.split(","))))
-        if len(devs) > 0:
-            specification['device'] = devs
-
-    r = requests.put(url, data=json.dumps(specification), headers=headers,
-                     params=params)
-    if r.status_code in [200, 201]:
-        print("Created container '%s'." % (args.container_name))
-    elif r.status_code == 202:
-        print("Updated container '%s'." % (args.container_name))
-    elif r.status_code == 206:
-        print("Partial success on creating the containers")
-        print(r.text)
-    elif r.status_code == 404:
-        sys.stderr.write("ERROR: Node is not found\n")
-        sys.exit(15)
-    else:
-        sys.stderr.write(
-            "ERROR: Failed creating container '%s' (status code: %d)\n" %
-            (args.container_name, r.status_code))
-        sys.stderr.write(r.text)
-        sys.stderr.write("\n")
-        sys.exit(12)
+def rm_container(config, args):
+    with config as api:
+        _pp_yaml(args, api.delete_container(args.name, group_name=args.group, node_id=args.node))
 
 
-def list_container():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--node", dest="node", type=str,
-                        help="Containers only on a particular node")
-    parser.add_argument("--name", dest="node_name", type=str,
-                        help="Node's name")
-    args = parser.parse_args()
+def list_ssh_key(config, args):
+    pass
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument("--node", dest="node", type=str,
+#                         help="Remove container from a specific node")
+#     parser.add_argument("--name", dest="node_name", type=str,
+#                         help="Node's name")
+#     args = parser.parse_args()
 
-    headers = {
-        "X-API-Key": CONFIG["api-key"],
-        "Accept-Encoding": "gzip",
-        }
-    params = {
-        "hostname": args.node_name,
-        "id": args.node,
-        "email": CONFIG["email"],
-        }
-    url = "%s/container" % CONFIG["server"]
-
-    r = requests.get(url, headers=headers, params=params)
-    if r.status_code == 200:
-        data = __inject_container_state(r.json(), headers, params)
-        yaml.safe_dump(data, stream=sys.stdout, indent=2,
-                       default_flow_style=False)
-        sys.stdout.write("\n")
-    elif r.status_code == 404:
-        sys.stderr.write("ERROR: Node is not found\n")
-        sys.exit(15)
-    else:
-        sys.stderr.write("Failed listing container(s) (status code: %d)\n" %
-                         r.status_code)
-        sys.stderr.write(r.text)
-        sys.stderr.write("\n")
-        sys.exit(13)
+#     headers = {
+#         "X-API-Key": CONFIG["api-key"],
+#         "Accept-Encoding": "gzip",
+#         }
+#     params = {
+#         "hostname": args.node_name,
+#         "id": args.node,
+#         "email": CONFIG["email"],
+#         }
+#     url = "%s/user/ssh-key" % CONFIG["server"]
+#     r = requests.get(url, headers=headers, params=params)
+#     if r.status_code == 200:
+#         yaml.safe_dump(r.json(), stream=sys.stdout, indent=2,
+#                        default_flow_style=False)
+#     elif r.status_code == 404:
+#         sys.stderr.write("ERROR: Node is not found\n")
+#         sys.exit(15)
+#     else:
+#         sys.stderr.write("ERROR: Listing SSH keys failed (status code: %d)\n"
+#                          % r.status_code)
+#         sys.exit(10)
 
 
-def __inject_container_state(data, headers, params):
-    url = "%s/monitor" % CONFIG["server"]
-    r = requests.get(url, headers=headers, params=params)
-    if r.status_code != 200:
-        sys.stderr.write("Warning: failed getting container(s)'s state\n")
-        sys.stderr.flush()
-        return
+def add_ssh_key(config, args):
+    pass
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument("--keyfile", dest="keyfile", type=str,
+#                         help="File of public key to be added")
+#     parser.add_argument("--key", dest="key", type=str,
+#                         help="Public key to be added")
+#     parser.add_argument("--node", dest="node", type=str,
+#                         help="Remove container from a specific node")
+#     parser.add_argument("--name", dest="node_name", type=str,
+#                         help="Node's name")
+#     args = parser.parse_args()
 
-    # multiple nodes
-    monitor = r.json()
-    for piid in monitor:
-        if piid not in data:
-            continue
-        node_monitor = monitor[piid]
-        if isinstance(node_monitor, dict) and "docker" in node_monitor and \
-                "containers" in node_monitor["docker"]:
-            __inject_node_container_state(
-                    data[piid],
-                    node_monitor["docker"]["containers"])
-    return data
+#     if args.keyfile is None and args.key is None:
+#         return
+#     if args.key is None and args.keyfile is not None:
+#         with open(args.keyfile) as f:
+#             args.key = f.read().strip()
 
+#     parts = re.split(r"\s+", args.key)
+#     if len(parts) < 2:
+#         sys.stderr.write("Invalid key.")
+#         sys.exit(1)
+#     if parts[0] not in SSH_KEY_TYPES:
+#         sys.stderr.write("Invalid key type: " + repr(parts[0]))
+#         sys.exit(2)
+#     ssh_key = {
+#         "type": parts[0],
+#         "key": parts[1],
+#         "comment": None if len(parts) < 3 else parts[2],
+#         }
 
-def __inject_node_container_state(data, containers):
-    if isinstance(containers, list):
-        for container in containers:
-            for name in container["Names"]:
-                name = name.lstrip("/")
-                name, ext = os.path.splitext(name)
-                if ext == ".fruit":
-                    if name in data:
-                        data[name]["state"] = container["State"]
-                        data[name]["status"] = container["Status"]
-                    break
-    for name in data:
-        if "state" not in data[name]:
-            data[name]["state"] = "absent"
-
-
-def rm_container():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--node", dest="node", type=str,
-                        help="Remove container from a specific node")
-    parser.add_argument("--name", dest="node_name", type=str,
-                        help="Node's name")
-    parser.add_argument("container_name", type=container_name,
-                        help="Container's name in pattern [a-zA-Z0-9\\-_]+")
-    args = parser.parse_args()
-
-    headers = {
-        "X-API-Key": CONFIG["api-key"],
-        "Accept-Encoding": "gzip",
-        }
-    params = {
-        "name": args.container_name,
-        "hostname": args.node_name,
-        "id": args.node,
-        "email": CONFIG["email"],
-        }
-    url = "%s/container" % CONFIG["server"]
-
-    r = requests.delete(url, headers=headers, params=params)
-    if r.status_code == 204:
-        print("Container '%s' has been removed." % args.container_name)
-    elif r.status_code == 206:
-        print("Partial success on removing the containers")
-        print(r.text)
-    elif r.status_code == 404:
-        sys.stderr.write("ERROR: Node is not found\n")
-        sys.exit(15)
-    else:
-        sys.stderr.write("Failed removing container '%s' (status code: %d)\n"
-                         % (args.container_name, r.status_code))
-        sys.stderr.write(r.text)
-        sys.stderr.write("\n")
-        sys.exit(14)
+#     headers = {
+#         "Content-Type": "application/json",
+#         "X-API-Key": CONFIG["api-key"],
+#         "Accept-Encoding": "gzip",
+#         }
+#     params = {
+#         "hostname": args.node_name,
+#         "id": args.node,
+#         "email": CONFIG["email"],
+#         }
+#     url = "%s/user/ssh-key" % CONFIG["server"]
+#     r = requests.put(url, data=json.dumps(ssh_key), headers=headers,
+#                      params=params)
+#     if r.status_code == 200:
+#         print("SSH Key has been stored. It takes several minutes to be \
+# activated.")
+#     elif r.status_code == 404:
+#         sys.stderr.write("ERROR: Node is not found\n")
+#         sys.exit(3)
+#     else:
+#         sys.stderr.write("ERROR: Failed storing the SSH key (status code: %d)\
+# \n" % r.status_code)
+#         sys.exit(4)
 
 
-def list_ssh_key():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--node", dest="node", type=str,
-                        help="Remove container from a specific node")
-    parser.add_argument("--name", dest="node_name", type=str,
-                        help="Node's name")
-    args = parser.parse_args()
+def rm_ssh_key(config, args):
+    pass
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument("--keyfile", dest="keyfile", type=str,
+#                         help="File of public key to be removed")
+#     parser.add_argument("--key", dest="key", type=str,
+#                         help="Public key to be removed")
+#     parser.add_argument("--index", dest="index", type=int,
+#                         help="Index of public key")
+#     parser.add_argument("--node", dest="node", type=str,
+#                         help="Remove container from a specific node")
+#     parser.add_argument("--name", dest="node_name", type=str,
+#                         help="Node's name")
+#     args = parser.parse_args()
 
-    headers = {
-        "X-API-Key": CONFIG["api-key"],
-        "Accept-Encoding": "gzip",
-        }
-    params = {
-        "hostname": args.node_name,
-        "id": args.node,
-        "email": CONFIG["email"],
-        }
-    url = "%s/user/ssh-key" % CONFIG["server"]
-    r = requests.get(url, headers=headers, params=params)
-    if r.status_code == 200:
-        yaml.safe_dump(r.json(), stream=sys.stdout, indent=2,
-                       default_flow_style=False)
-    elif r.status_code == 404:
-        sys.stderr.write("ERROR: Node is not found\n")
-        sys.exit(15)
-    else:
-        sys.stderr.write("ERROR: Listing SSH keys failed (status code: %d)\n"
-                         % r.status_code)
-        sys.exit(10)
+#     if args.keyfile is None and args.key is None and args.index is None:
+#         return
+#     if args.key is None and args.keyfile is not None:
+#         with open(args.keyfile) as f:
+#             args.key = f.read().strip()
 
+#     ssh_key = {"type": "", "key": "", "index": args.index}
+#     if args.key is not None:
+#         parts = re.split(r"\s+", args.key)
+#         if len(parts) < 2:
+#             sys.stderr.write("Invalid key.")
+#             sys.exit(1)
+#         if parts[0] not in SSH_KEY_TYPES:
+#             sys.stderr.write("Invalid key type:", parts[0])
+#             sys.exit(2)
+#         ssh_key["type"] = parts[0]
+#         ssh_key["key"] = parts[1]
+#         if len(parts) >= 3:
+#             ssh_key["comment"] = parts[2]
 
-def add_ssh_key():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--keyfile", dest="keyfile", type=str,
-                        help="File of public key to be added")
-    parser.add_argument("--key", dest="key", type=str,
-                        help="Public key to be added")
-    parser.add_argument("--node", dest="node", type=str,
-                        help="Remove container from a specific node")
-    parser.add_argument("--name", dest="node_name", type=str,
-                        help="Node's name")
-    args = parser.parse_args()
-
-    if args.keyfile is None and args.key is None:
-        return
-    if args.key is None and args.keyfile is not None:
-        with open(args.keyfile) as f:
-            args.key = f.read().strip()
-
-    parts = re.split(r"\s+", args.key)
-    if len(parts) < 2:
-        sys.stderr.write("Invalid key.")
-        sys.exit(1)
-    if parts[0] not in SSH_KEY_TYPES:
-        sys.stderr.write("Invalid key type: " + repr(parts[0]))
-        sys.exit(2)
-    ssh_key = {
-        "type": parts[0],
-        "key": parts[1],
-        "comment": None if len(parts) < 3 else parts[2],
-        }
-
-    headers = {
-        "Content-Type": "application/json",
-        "X-API-Key": CONFIG["api-key"],
-        "Accept-Encoding": "gzip",
-        }
-    params = {
-        "hostname": args.node_name,
-        "id": args.node,
-        "email": CONFIG["email"],
-        }
-    url = "%s/user/ssh-key" % CONFIG["server"]
-    r = requests.put(url, data=json.dumps(ssh_key), headers=headers,
-                     params=params)
-    if r.status_code == 200:
-        print("SSH Key has been stored. It takes several minutes to be \
-activated.")
-    elif r.status_code == 404:
-        sys.stderr.write("ERROR: Node is not found\n")
-        sys.exit(3)
-    else:
-        sys.stderr.write("ERROR: Failed storing the SSH key (status code: %d)\
-\n" % r.status_code)
-        sys.exit(4)
+#     headers = {
+#         "Content-Type": "application/json",
+#         "X-API-Key": CONFIG["api-key"],
+#         "Accept-Encoding": "gzip",
+#         }
+#     params = {
+#         "hostname": args.node_name,
+#         "id": args.node,
+#         "email": CONFIG["email"],
+#         }
+#     url = "%s/user/ssh-key" % CONFIG["server"]
+#     r = requests.delete(url, data=json.dumps(ssh_key), headers=headers,
+#                         params=params)
+#     if r.status_code == 200:
+#         print("SSH Key has been deleted.")
+#     elif r.status_code == 404:
+#         sys.stderr.write("ERROR: Node is not found\n")
+#         sys.exit(3)
+#     else:
+#         sys.stderr.write("ERROR: Failed deleting the SSH key (status code: %d)\
+# \n" % r.status_code)
+#         sys.exit(4)
 
 
-def rm_ssh_key():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--keyfile", dest="keyfile", type=str,
-                        help="File of public key to be removed")
-    parser.add_argument("--key", dest="key", type=str,
-                        help="Public key to be removed")
-    parser.add_argument("--index", dest="index", type=int,
-                        help="Index of public key")
-    parser.add_argument("--node", dest="node", type=str,
-                        help="Remove container from a specific node")
-    parser.add_argument("--name", dest="node_name", type=str,
-                        help="Node's name")
-    args = parser.parse_args()
-
-    if args.keyfile is None and args.key is None and args.index is None:
-        return
-    if args.key is None and args.keyfile is not None:
-        with open(args.keyfile) as f:
-            args.key = f.read().strip()
-
-    ssh_key = {"type": "", "key": "", "index": args.index}
-    if args.key is not None:
-        parts = re.split(r"\s+", args.key)
-        if len(parts) < 2:
-            sys.stderr.write("Invalid key.")
-            sys.exit(1)
-        if parts[0] not in SSH_KEY_TYPES:
-            sys.stderr.write("Invalid key type:", parts[0])
-            sys.exit(2)
-        ssh_key["type"] = parts[0]
-        ssh_key["key"] = parts[1]
-        if len(parts) >= 3:
-            ssh_key["comment"] = parts[2]
-
-    headers = {
-        "Content-Type": "application/json",
-        "X-API-Key": CONFIG["api-key"],
-        "Accept-Encoding": "gzip",
-        }
-    params = {
-        "hostname": args.node_name,
-        "id": args.node,
-        "email": CONFIG["email"],
-        }
-    url = "%s/user/ssh-key" % CONFIG["server"]
-    r = requests.delete(url, data=json.dumps(ssh_key), headers=headers,
-                        params=params)
-    if r.status_code == 200:
-        print("SSH Key has been deleted.")
-    elif r.status_code == 404:
-        sys.stderr.write("ERROR: Node is not found\n")
-        sys.exit(3)
-    else:
-        sys.stderr.write("ERROR: Failed deleting the SSH key (status code: %d)\
-\n" % r.status_code)
-        sys.exit(4)
+def _add_group_argument(p):
+    p.add_argument('--group', metavar='NODEGROUP', type=str, default=None,
+                   help='Restrict operation to the named node group')
 
 
-def print_usage(app_name):
-    print("""Usage: %(app_name)s COMMAND
-
-Your configuration file location: %(config_file)s
-Override its location with the %(config_file_var)s environment variable.
-
-Management Commands:
-  config           Print/edit fruit-cli configuration file
-  register         Register a user
-  forget-api-key   Re-send user's API key to email
-  list-node        List of nodes
-  monitor          Print monitoring data
-  run-container    Run a container on node(s)
-  list-container   List container(s)
-  rm-container     Remove a container
-  list-ssh-key     List authorized SSH keys
-  add-ssh-key      Add a new authorized SSH key
-  rm-ssh-key       Remove an authorized SSH key
-""" % {'app_name': app_name,
-       'config_file': __config_file(),
-       'config_file_var': FRUIT_CLI_CONFIG_VAR})
+def _add_node_group_filter_arguments(p):
+    g = p.add_argument_group('Node selection')
+    _add_group_argument(g)
+    g.add_argument('--node', metavar='NODEID', type=str, default=None,
+                   help='Restrict operation to the named node')
+    return g
 
 
-def main():
-    app_name = sys.argv[0]
-    if len(sys.argv) < 2:
-        print_usage(app_name)
-        sys.exit(1)
-    sys.argv.pop(0)
+def _add_ssh_key_arguments(p):
+    g = p.add_argument_group('Key specification')
+    g.add_argument('--key', metavar='SSHPUBLICKEY', type=str, action='append',
+                   help='Specify a literal SSH public key')
+    g.add_argument('--keyfile', metavar='FILENAME', type=str, action='append',
+                   help='Specify a path to a file containing SSH public keys')
+    return g
 
-    # Try loading the configuration at this point in order to allow
-    # overriding of server api URL for e.g. register() and
-    # forget_api_key().
-    #
-    __load_config(create_if_missing=False)
 
-    if sys.argv[0] == "register":
-        sys.exit(register())
-    if sys.argv[0] == "forget-api-key":
-        sys.exit(forget_api_key())
+def main(argv=sys.argv):
+    app_name = os.path.basename(argv[0])
+    argv = argv[1:]
 
-    __load_config()
+    synopsis='''Interface to the FRμIT management server API. Your configuration
+    file is %(config_file)s. Override its location with the
+    %(config_file_var)s environment variable or the --config
+    command-line option.''' % {
+        'config_file': config_filename(),
+        'config_file_var': FRUIT_CLI_CONFIG_VAR,
+    }
 
-    if sys.argv[0] == "config":
-        config()
-    elif sys.argv[0] == "list-node":
-        list_node()
-    elif sys.argv[0] == "monitor":
-        monitor()
-    elif sys.argv[0] == "run-container":
-        run_container()
-    elif sys.argv[0] == "list-container" or sys.argv[0] == "list-containers":
-        list_container()
-    elif sys.argv[0] == "rm-container":
-        rm_container()
-    elif sys.argv[0] == "list-ssh-key":
-        list_ssh_key()
-    elif sys.argv[0] == "add-ssh-key":
-        add_ssh_key()
-    elif sys.argv[0] == "rm-ssh-key":
-        rm_ssh_key()
-    else:
-        print("Invalid command:", sys.argv[0], end="\n\n")
-        print_usage(app_name)
-        sys.exit(2)
+    parser = argparse.ArgumentParser(prog=app_name,
+                                     description=synopsis)
+    parser.add_argument('--config', '-c', type=str, metavar='FILENAME',
+                        dest='config_filename',
+                        default=config_filename(),
+                        help='Supply an alternate configuration file')
+    parser.add_argument('--json', action='store_true',
+                        default=False,
+                        help='Produce output in JSON instead of YAML')
+    parser.set_defaults(handler=lambda config, args: parser.print_help())
+
+    sp = parser.add_subparsers()
+
+    p = sp.add_parser('register', help='Register a new account',
+                      description='''Interactive registration of a new
+                      account. You must have access to the email
+                      address supplied.''')
+    p.add_argument('email', type=str,
+                   help='Email address of the account to register')
+    p.set_defaults(handler=register)
+
+    p = sp.add_parser('resend-api-key', help='Request an email containing the API Key')
+    p.add_argument('email', type=str,
+                   help='Email address of the account')
+    p.set_defaults(handler=resend_api_key)
+
+    GROUP_HELP = ''' If --group is supplied, includes only nodes in the named group.'''
+    NODE_HELP = ''' If --node is supplied, includes only the named node (or nothing at
+    all, if that node is not in the selected --group).'''
+
+    p = sp.add_parser('list-nodes', help='List (all or some) nodes',
+                      description='''Prints a YAML summary of accessible nodes to stdout.''' + GROUP_HELP)
+    _add_group_argument(p)
+    p.set_defaults(handler=list_nodes)
+
+    p = sp.add_parser('monitor', help='Retrieve monitoring data from nodes',
+                      description='''Prints a YAML summary of monitoring data from accessible nodes to
+                      stdout.''' + GROUP_HELP + NODE_HELP)
+    _add_node_group_filter_arguments(p)
+    p.set_defaults(handler=monitor)
+
+    p = sp.add_parser('container', help='Container management')
+    _add_node_group_filter_arguments(p)
+    container_p = p
+    p.set_defaults(handler=lambda config, args: container_p.print_help())
+    ssp = p.add_subparsers()
+
+    p = ssp.add_parser('run', help='Deploy containers to nodes')
+    p.add_argument('--publish', '-p', metavar='[IP:][HOSTPORT:]CONTAINERPORT',
+                   type=str, action='append',
+                   help='Publish container port(s) to the host')
+    p.add_argument('--volume', '-v', metavar='VOLUMESPEC', type=str, action='append',
+                   help='Bind host volume(s) to the container')
+    p.add_argument('--kernel-module', metavar='MODULENAME', type=str, action='append',
+                   help='Kernel module to modprobe before starting container')
+    p.add_argument('--device-tree', metavar='FILENAME', type=str, action='append',
+                   help='Device-tree overlays to install before starting container')
+    p.add_argument('--device', metavar='FILENAME', type=str, action='append',
+                   help='Host device(s) to expose to the container')
+    p.add_argument('--name', metavar='CONTAINERNAME', type=str, required=True,
+                   help='Name for the container')
+    p.add_argument('image', type=str,
+                   help='Docker image for the container')
+    p.add_argument('command', type=str, nargs=argparse.REMAINDER,
+                   help='Command to run within container')
+    p.set_defaults(handler=run_container)
+
+    p = ssp.add_parser('list', help='List containers on nodes')
+    p.set_defaults(handler=list_container)
+
+    p = ssp.add_parser('remove', help='Remove containers from nodes')
+    p.add_argument('--name', metavar='CONTAINERNAME', type=str, required=True,
+                   help='Name of the container to remove')
+    p.set_defaults(handler=rm_container)
+
+    p = sp.add_parser('key', help='SSH key management')
+    _add_node_group_filter_arguments(p)
+    ssh_p = p
+    p.set_defaults(handler=lambda config, args: ssh_p.print_help())
+    ssp = p.add_subparsers()
+
+    p = ssp.add_parser('add', help='Grant SSH key access to nodes')
+    _add_ssh_key_arguments(p)
+    p.set_defaults(handler=add_ssh_key)
+
+    p = ssp.add_parser('list', help='List SSH keys with access to nodes')
+    p.set_defaults(handler=list_ssh_key)
+
+    p = ssp.add_parser('remove', help='Delete SSH keys having access to nodes')
+    g = _add_ssh_key_arguments(p)
+    g.add_argument('--index', type=str, action='append',
+                   help='Specify key(s) by index in the output of "... key list"')
+    p.set_defaults(handler=rm_ssh_key)
+
+    args = parser.parse_args(argv)
+    config = Config()
+    config.load(args.config_filename)
+
+    # print()
+    # for a in config.__dict__.items():
+    #     print(a)
+    # print()
+    # for a in args.__dict__.items():
+    #     print(a)
+
+    args.handler(config, args)
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv)
