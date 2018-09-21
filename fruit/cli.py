@@ -132,6 +132,33 @@ def print_config(config, args):
     _pp_yaml(args, config.to_json())
 
 
+def delete_account(config, args):
+    print()
+    print('YOU ARE ABOUT TO DELETE YOUR FRμIT ACCOUNT.')
+    print()
+    print('This will destroy')
+    print(' -- all your configuration data')
+    print(' -- all your monitoring data')
+    print(' -- all your node records')
+    print(' -- all your uploaded SSH public keys')
+    print()
+    print('THIS IS PERMANENT. THERE IS NO WAY TO UNDO THIS.')
+    print()
+    entered_email = input("Type your account's email address to confirm deletion: ")
+    if entered_email != config.email:
+        print("Email address does not match.")
+        sys.exit(1)
+
+    print()
+    if input("Last chance! Enter 'YES' to delete your account: ") != 'YES':
+        print("Cancelling.")
+        sys.exit(1)
+    with config as api:
+        api.delete_account()
+        print()
+        print("Account deleted.")
+
+
 def list_nodes(config, args):
     with config as api:
         _pp_yaml(args, api.list_nodes(group_name=args.group))
@@ -300,36 +327,55 @@ def main(argv=sys.argv):
 
     sp = parser.add_subparsers()
 
-    p = sp.add_parser('register', help='Register a new account',
-                      description='''Interactive registration of a new
-                      account. You must have access to the email
-                      address supplied.''')
-    p.add_argument('email', type=str,
-                   help='Email address of the account to register')
-    p.set_defaults(handler=register)
-
-    p = sp.add_parser('resend-api-key', help='Request an email containing the API Key')
-    p.add_argument('email', type=str,
-                   help='Email address of the account')
-    p.set_defaults(handler=resend_api_key)
-
-    p = sp.add_parser('config', help='Print current configuration settings')
-    p.set_defaults(handler=print_config)
-
     GROUP_HELP = ''' If --group is supplied, includes only nodes in the named group.'''
     NODE_HELP = ''' If --node is supplied, includes only the named node (or nothing at
     all, if that node is not in the selected --group).'''
 
-    p = sp.add_parser('list-nodes', help='List (all or some) nodes',
+    #------------------------------------------------------------------------
+
+    p = sp.add_parser('account', help='Account management')
+    account_p = p
+    p.set_defaults(handler=lambda config, args: account_p.print_help())
+    ssp = p.add_subparsers()
+
+    p = ssp.add_parser('register', help='Register a new account',
+                       description='''Interactive registration of a new
+                       account. You must have access to the email
+                       address supplied.''')
+    p.add_argument('email', type=str,
+                   help='Email address of the account to register')
+    p.set_defaults(handler=register)
+
+    p = ssp.add_parser('resend-api-key', help='Request an email containing the API Key')
+    p.add_argument('email', type=str,
+                   help='Email address of the account')
+    p.set_defaults(handler=resend_api_key)
+
+    p = ssp.add_parser('config', help='Print current configuration settings')
+    p.set_defaults(handler=print_config)
+
+    p = ssp.add_parser('delete', help='Delete account')
+    p.set_defaults(handler=delete_account)
+
+    #------------------------------------------------------------------------
+
+    p = sp.add_parser('node', help='Node management')
+    node_p = p
+    p.set_defaults(handler=lambda config, args: node_p.print_help())
+    ssp = p.add_subparsers()
+
+    p = ssp.add_parser('list', help='List (all or some) nodes',
                       description='''Prints a YAML summary of accessible nodes to stdout.''' + GROUP_HELP)
     _add_group_argument(p)
     p.set_defaults(handler=list_nodes)
 
-    p = sp.add_parser('monitor', help='Retrieve monitoring data from nodes',
-                      description='''Prints a YAML summary of monitoring data from accessible nodes to
-                      stdout.''' + GROUP_HELP + NODE_HELP)
+    p = ssp.add_parser('monitor', help='Retrieve monitoring data from nodes',
+                       description='''Prints a YAML summary of monitoring data from accessible nodes to
+                       stdout.''' + GROUP_HELP + NODE_HELP)
     _add_node_group_filter_arguments(p)
     p.set_defaults(handler=monitor)
+
+    #------------------------------------------------------------------------
 
     p = sp.add_parser('container', help='Container management')
     _add_node_group_filter_arguments(p)
@@ -365,6 +411,8 @@ def main(argv=sys.argv):
                    help='Name of the container to remove')
     p.set_defaults(handler=rm_container)
 
+    #------------------------------------------------------------------------
+
     p = sp.add_parser('key', help='SSH key management')
     ssh_p = p
     p.set_defaults(handler=lambda config, args: ssh_p.print_help())
@@ -391,6 +439,8 @@ def main(argv=sys.argv):
     p.add_argument('node', type=str,
                    help="Specify which node's authorized_keys file to retrieve by node ID")
     p.set_defaults(handler=authorized_keys)
+
+    #------------------------------------------------------------------------
 
     args = parser.parse_args(argv)
     config = Config()
