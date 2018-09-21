@@ -108,6 +108,9 @@ class FruitApi:
     def resend_api_key(self, email):
         return self._call('GET', '/verify/%s/resend' % (email,)).json()
 
+    def delete_account(self):
+        self._call('DELETE', '/user/%s' % (self.email,))
+
     def list_nodes(self, group_name=None):
         params = self._starting_params(group_name=group_name)
         return self._call('GET', '/node', params=params).json()
@@ -164,6 +167,17 @@ class FruitApi:
 
     def authorized_keys(self, node_id):
         return self._call('GET', '/node/%s/ssh_key' % (node_id,)).content
+
+    def delete_node(self, node_id):
+        params = self._starting_params()
+        try:
+            self._call('DELETE', '/node/%s' % (node_id,), params=params)
+            return True
+        except FruitApiClientProblem as exn:
+            if exn.response.status_code == 404:
+                return False
+            else:
+                raise
 
 
 class ContainerSpec:
