@@ -67,7 +67,7 @@ class FruitApi:
         headers['Accept-Encoding'] = 'gzip'
         if self._api_key is not None:
             headers['X-API-Key'] = self._api_key
-        if content_type is not None: # pragma: no cover
+        if content_type is not None:
             headers['Content-Type'] = content_type
         if isinstance(data, dict):
             data = json.dumps(data)
