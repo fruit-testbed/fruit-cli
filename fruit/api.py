@@ -40,13 +40,12 @@ class FruitApiRequestProblem(FruitApiError):
         super().__init__(str(inner))
 
 class FruitApiErrorResponse(FruitApiError):
-    def __init__(self, response, message=None, **kwargs):
-        if message is None:
-            try:
-                blob = response.json()
-                message = blob['title']
-            except: # pragma: no cover
-                message = response.reason
+    def __init__(self, response, **kwargs):
+        try:
+            blob = response.json()
+            message = blob['title']
+        except: # pragma: no cover
+            message = response.reason
         super().__init__(message, **kwargs)
         self.response = response
 
@@ -73,7 +72,7 @@ class FruitApi:
             headers['Content-Type'] = content_type
         if isinstance(data, dict):
             data = json.dumps(data)
-            if 'Content-Type' not in headers:
+            if 'Content-Type' not in headers: # pragma: no branch
                 headers['Content-Type'] = 'application/json'
         try:
             resp = requests.request(method,
@@ -88,8 +87,7 @@ class FruitApi:
             return resp
         if code >= 300 and code <= 399: # pragma: no cover
             # We do not yet handle redirections, since the API does not require them.
-            raise FruitApiServerProblem(resp,
-                                        message='Server redirection not supported by this client')
+            raise FruitApiServerProblem(resp)
         if code >= 400 and code <= 499:
             raise FruitApiClientProblem(resp)
         if code >= 500: # pragma: no cover
@@ -135,6 +133,9 @@ class FruitApi:
         return self._call('GET', '/container', params=params).json()
 
     def delete_container(self, container_name, group_name=None, node_id=None):
+        if not isinstance(container_name, str):
+            raise TypeError('delete_container: container_name must be string: got %r' %
+                            (container_name,))
         params = self._starting_params(group_name=group_name, node_id=node_id)
         params['name'] = container_name
         return self._call('DELETE', '/container', params=params).json()
@@ -212,6 +213,13 @@ class ContainerSpec:
                              blob.get('kernel_module', []),
                              blob.get('device_tree', []),
                              blob.get('device', []))
+
+    def __eq__(self, other):
+        return isinstance(other, ContainerSpec) and self.to_json() == other.to_json()
+
+    def __hash__(self):
+        # This is vile
+        return hash(json.dumps(self.to_json(), sort_keys=True))
 
 
 SshKey = collections.namedtuple('SshKey', 'key_type key_id key_comment')
