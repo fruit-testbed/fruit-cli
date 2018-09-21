@@ -359,7 +359,10 @@ def main(argv=sys.argv):
     p = ssp.add_parser('config', help='Print current configuration settings')
     p.set_defaults(handler=print_config)
 
-    p = ssp.add_parser('delete', help='Delete account')
+    p = ssp.add_parser('delete', help='Delete account',
+                       description='''Permanently deletes your
+                       account, your nodes, and all your configuration
+                       and settings.''')
     p.set_defaults(handler=delete_account)
 
     #------------------------------------------------------------------------
