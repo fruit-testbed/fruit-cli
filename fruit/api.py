@@ -12,7 +12,7 @@ import collections
 DEFAULT_SERVER = 'https://fruit-testbed.org/api'
 
 
-def __debug_requests():
+def __debug_requests(): # pragma: no cover
     import logging
     try:
         # Python 2
@@ -27,7 +27,7 @@ def __debug_requests():
     logger.setLevel(logging.DEBUG)
     logger.propagate = True
 
-if os.environ.get('FRUIT_API_DEBUG', ''):
+if os.environ.get('FRUIT_API_DEBUG', ''): # pragma: no cover
     __debug_requests()
 
 
@@ -37,7 +37,7 @@ class FruitApiError(Exception):
             try:
                 blob = response.json()
                 message = blob['title']
-            except:
+            except: # pragma: no cover
                 message = response.reason
         super().__init__(message, **kwargs)
         self.response = response
@@ -62,7 +62,7 @@ class FruitApi:
         headers['Accept-Encoding'] = 'gzip'
         if self._api_key is not None:
             headers['X-API-Key'] = self._api_key
-        if content_type is not None:
+        if content_type is not None: # pragma: no cover
             headers['Content-Type'] = content_type
         if isinstance(data, dict):
             data = json.dumps(data)
@@ -76,13 +76,13 @@ class FruitApi:
         code = resp.status_code
         if code >= 200 and code <= 299:
             return resp
-        if code >= 300 and code <= 399:
+        if code >= 300 and code <= 399: # pragma: no cover
             # We do not yet handle redirections, since the API does not require them.
             raise FruitApiServerProblem(resp,
                                         message='Server redirection not supported by this client')
         if code >= 400 and code <= 499:
             raise FruitApiClientProblem(resp)
-        if code >= 500:
+        if code >= 500: # pragma: no cover
             raise FruitApiServerProblem(resp)
 
     @property
