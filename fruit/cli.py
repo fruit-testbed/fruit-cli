@@ -172,6 +172,11 @@ def monitor(config, args):
         _pp_yaml(args, api.get_monitoring_data(group_name=args.group, node_id=args.node))
 
 
+def reset_node(config, args):
+    with config as api:
+        api.delete_node(args.node)
+
+
 def run_container(config, args):
     with config as api:
         spec = fa.ContainerSpec(args.name,
@@ -374,6 +379,11 @@ def main(argv=sys.argv):
                        stdout.''' + GROUP_HELP + NODE_HELP)
     _add_node_group_filter_arguments(p)
     p.set_defaults(handler=monitor)
+
+    p = ssp.add_parser('reset', help='Deregister and reset a specific node',
+                       description='''Deletes all records associated with a specific node.''')
+    p.add_argument('node', type=str, help="Specify the ID of the node to reset")
+    p.set_defaults(handler=reset_node)
 
     #------------------------------------------------------------------------
 
