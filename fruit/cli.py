@@ -158,26 +158,27 @@ def list_container(config, args):
 
         # Modify `node_map` to add information on which nodes are
         # successfully running each container.
-        #
-        # TODO: make more robust in traversing the `data` blobs
         all_data = api.get_monitoring_data(group_name=args.group, node_id=args.node)
         for (node_id, data) in all_data.items():
             if node_id in node_map:
                 stub = node_map[node_id]
-                if isinstance(data, dict) and 'docker' in data and 'containers' in data['docker']:
-                    containers = data['docker']['containers']
-                    if isinstance(containers, list):
-                        for container in containers:
-                            for name in container["Names"]: ## !! from the node itself
-                                name, ext = os.path.splitext(name.lstrip('/'))
-                                if ext == '.fruit':
-                                    if name in stub:
-                                        stub[name]['state'] = container["State"]
-                                        stub[name]['status'] = container["Status"]
-                                    break
-                    for name in stub:
-                        if 'state' not in stub[name]:
-                            stub[name]['state'] = 'absent'
+                if not isinstance(data, dict): continue
+                docker = data.get('docker', {})
+                if not isinstance(docker, dict): continue
+
+                for name in stub:
+                    stub[name]['state'] = 'absent'
+
+                containers = docker.get('containers', [])
+                if isinstance(containers, list):
+                    for container in containers:
+                        for name in container["Names"]: ## !! from the node itself
+                            name, ext = os.path.splitext(name.lstrip('/'))
+                            if ext == '.fruit':
+                                if name in stub:
+                                    stub[name]['state'] = container["State"] # !!
+                                    stub[name]['status'] = container["Status"] # !!
+                                break
 
         _pp_yaml(args, node_map)
 
