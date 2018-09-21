@@ -34,13 +34,16 @@ class Config:
         self.api_key = blob.get('api-key', None)
         self.email = blob.get('email', None)
 
-    def dump(self, filename):
+    def to_json(self):
         blob = {}
         if self.server != fa.DEFAULT_SERVER: blob['server'] = self.server
         if self.api_key: blob['api-key'] = self.api_key
         if self.email: blob['email'] = self.email
+        return blob
+
+    def dump(self, filename):
         with open(filename, 'wt') as f:
-            yaml.safe_dump(blob, stream=f, default_flow_style=False)
+            yaml.safe_dump(self.to_json(), stream=f, default_flow_style=False)
         os.chmod(filename, stat.S_IRUSR | stat.S_IWUSR)
 
     def __enter__(self):
@@ -117,6 +120,10 @@ def _pp_yaml(args, blob):
         sys.stdout.write('\n')
     else:
         yaml.safe_dump(blob, stream=sys.stdout, indent=2, default_flow_style=False)
+
+
+def print_config(config, args):
+    _pp_yaml(args, config.to_json())
 
 
 def list_nodes(config, args):
@@ -387,6 +394,9 @@ def main(argv=sys.argv):
     p.add_argument('email', type=str,
                    help='Email address of the account')
     p.set_defaults(handler=resend_api_key)
+
+    p = sp.add_parser('config', help='Print current configuration settings')
+    p.set_defaults(handler=print_config)
 
     GROUP_HELP = ''' If --group is supplied, includes only nodes in the named group.'''
     NODE_HELP = ''' If --node is supplied, includes only the named node (or nothing at
