@@ -32,6 +32,14 @@ if os.environ.get('FRUIT_API_DEBUG', ''): # pragma: no cover
 
 
 class FruitApiError(Exception):
+    pass
+
+class FruitApiRequestProblem(FruitApiError):
+    def __init__(self, inner):
+        self.inner = inner
+        super().__init__(str(inner))
+
+class FruitApiErrorResponse(FruitApiError):
     def __init__(self, response, message=None, **kwargs):
         if message is None:
             try:
@@ -42,9 +50,8 @@ class FruitApiError(Exception):
         super().__init__(message, **kwargs)
         self.response = response
 
-
-class FruitApiClientProblem(FruitApiError): pass
-class FruitApiServerProblem(FruitApiError): pass
+class FruitApiClientProblem(FruitApiErrorResponse): pass
+class FruitApiServerProblem(FruitApiErrorResponse): pass
 
 
 class FruitApi:
@@ -68,11 +75,14 @@ class FruitApi:
             data = json.dumps(data)
             if 'Content-Type' not in headers:
                 headers['Content-Type'] = 'application/json'
-        resp = requests.request(method,
-                                self._server + url,
-                                params=params,
-                                data=data,
-                                headers=headers)
+        try:
+            resp = requests.request(method,
+                                    self._server + url,
+                                    params=params,
+                                    data=data,
+                                    headers=headers)
+        except requests.exceptions.RequestException as exn:
+            raise FruitApiRequestProblem(exn)
         code = resp.status_code
         if code >= 200 and code <= 299:
             return resp
@@ -129,27 +139,31 @@ class FruitApi:
         params['name'] = container_name
         return self._call('DELETE', '/container', params=params).json()
 
-    def list_ssh_keys(self, group_name=None, node_id=None):
+    def list_ssh_keys(self, group_name=None, node_id=None, decode_json=True):
         ## TODO: split out retrieval of user keys from node keys entirely
         params = self._starting_params(group_name=group_name, node_id=node_id)
         result = self._call('GET', '/user/ssh-key', params=params).json()
-        users = result.get('users', {})
-        for (email, keys) in users.items():
-            users[email] = list(map(json_to_ssh_key, keys))
-        nodes = result.get('nodes', {})
-        for (node_id, keys) in nodes.items():
-            nodes[node_id] = list(map(json_to_ssh_key, keys))
+        if decode_json:
+            users = result.get('users', {})
+            for (email, keys) in users.items():
+                users[email] = list(map(json_to_ssh_key, keys))
+            nodes = result.get('nodes', {})
+            for (node_id, keys) in nodes.items():
+                nodes[node_id] = list(map(json_to_ssh_key, keys))
         return result
 
     def add_ssh_key(self, key, group_name=None, node_id=None):
         params = self._starting_params(group_name=group_name, node_id=node_id)
         data = ssh_key_to_json(key)
-        return self._call('PUT', '/user/ssh-key', params=params, data=data).json()
+        self._call('PUT', '/user/ssh-key', params=params, data=data)
 
     def delete_ssh_key(self, key, group_name=None, node_id=None):
         params = self._starting_params(group_name=group_name, node_id=node_id)
         data = ssh_key_to_json(key)
-        return self._call('DELETE', '/user/ssh-key', params=params, data=data).json()
+        self._call('DELETE', '/user/ssh-key', params=params, data=data)
+
+    def authorized_keys(self, node_id):
+        return self._call('GET', '/node/%s/ssh_key' % (node_id,)).content
 
 
 class ContainerSpec:
@@ -218,13 +232,18 @@ def json_to_ssh_key(ssh_key):
     t = ssh_key['type']
     if t not in KEY_TYPES:
         raise TypeError('Invalid SSH key type %r' % (t,))
-    return model.SshKey(ssh_key['type'], ssh_key['key'], ssh_key.get('comment', ''))
+    return SshKey(ssh_key['type'], ssh_key['key'], ssh_key.get('comment', ''))
 
 def ssh_key_to_json(k):
     j = { 'type': k.key_type, 'key': k.key_id }
     if k.key_comment: j['comment'] = k.key_comment
     return j
 
+def format_ssh_key(k):
+    if k.key_comment:
+        return '%s %s %s' % (k.key_type, k.key_id, k.key_comment)
+    else:
+        return '%s %s' % (k.key_type, k.key_id)
 
 class SshKeyFile:
     COMMENT = re.compile(r"^\s*#")
@@ -233,7 +252,7 @@ class SshKeyFile:
     def __init__(self):
         self.keys = []
 
-    def load(self, fh):
+    def load(self, fh, filename='???'):
         # Per sshd(8): "Each line of the file contains one key (empty
         # lines and lines starting with a '#' are ignored as
         # comments). Public keys consist of the following
@@ -259,25 +278,29 @@ class SshKeyFile:
         # authorized_keys position without restrictions! Perhaps a
         # future FRμIT version could support per-key options?
         #
-        self.keys.clear()
+        new_keys = []
+        linenumber = 0
         for line in fh:
+            linenumber = linenumber + 1
+            line = line.rstrip('\n')
             if SshKeyFile.COMMENT.match(line):
+                pass
+            elif not line.strip():
                 pass
             else:
                 fields = SshKeyFile.FIELDSEP.split(line, 2)
                 if len(fields) in [2, 3] and fields[0] in KEY_TYPES:
                     # key type is first field -> no pesky options!
                     comment = fields[2] if len(fields) == 3 else ''
-                    self.keys.append(SshKey(fields[0], fields[1], comment))
+                    new_keys.append(SshKey(fields[0], fields[1], comment))
                 else:
                     # either too short (i.e. invalid) or has something
                     # other than a key type as its first field (i.e.
                     # options present).
-                    pass
+                    raise FruitApiError('Unsupported SSH public key format at %s line %s: %s' % \
+                                        (filename, linenumber, line))
+        self.keys.extend(new_keys)
 
     def save(self, fh):
         for k in self.keys:
-            if k.key_comment:
-                fh.write('%s %s %s\n' % (k.key_type, k.key_id, k.key_comment))
-            else:
-                fh.write('%s %s\n' % (k.key_type, k.key_id))
+            fh.write(format_ssh_key(k) + '\n')

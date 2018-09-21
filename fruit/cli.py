@@ -11,6 +11,7 @@ import subprocess
 import json
 import re
 import yaml
+import io
 
 import fruit.api as fa
 
@@ -52,26 +53,31 @@ class Config:
     def __exit__(self, type, exn, tb):
         if exn is not None:
             if isinstance(exn, fa.FruitApiError):
-                sys.stderr.write('-' * 75 + '\n' +
-                                 'ERROR: %s %s\n' % (exn.response.status_code,
-                                                     exn.response.reason))
-                try:
-                    blob = exn.response.json()
-                    title = blob.get('title', None)
-                    detail = blob.get('detail', None)
-                    if title:
-                        sys.stderr.write('       %s\n' % (title,))
-                    if detail:
-                        sys.stderr.write('       %s\n' % (detail,))
-                    if os.environ.get('FRUIT_API_DEBUG', ''):
-                        import json
-                        sys.stderr.write(json.dumps(blob, indent=2))
-                except:
-                    pass
-                sys.stderr.write('-' * 75 + '\n')
+                self.print_pretty_summary(sys.stderr, exn)
                 sys.exit(1)
             else:
                 raise
+
+    def print_pretty_summary(self, fh, exn):
+        if isinstance(exn, fa.FruitApiErrorResponse):
+            fh.write('-' * 75 + '\n' +
+                     'ERROR: %s %s\n' % (exn.response.status_code, exn.response.reason))
+            try:
+                blob = exn.response.json()
+                title = blob.get('title', None)
+                detail = blob.get('detail', None)
+                if title:
+                    fh.write('       %s\n' % (title,))
+                if detail:
+                    fh.write('       %s\n' % (detail,))
+                if os.environ.get('FRUIT_API_DEBUG', ''):
+                    import json
+                    fh.write(json.dumps(blob, indent=2))
+            except:
+                pass
+            fh.write('-' * 75 + '\n')
+        else:
+            fh.write('ERROR: %s\n' % (str(exn),))
 
 
 def config_filename():
@@ -188,152 +194,63 @@ def rm_container(config, args):
         _pp_yaml(args, api.delete_container(args.name, group_name=args.group, node_id=args.node))
 
 
-def list_ssh_key(config, args):
-    pass
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument("--node", dest="node", type=str,
-#                         help="Remove container from a specific node")
-#     parser.add_argument("--name", dest="node_name", type=str,
-#                         help="Node's name")
-#     args = parser.parse_args()
+def list_ssh_keys(config, args):
+    with config as api:
+        ## TODO: split out retrieval of user keys from node keys entirely
+        if args.ssh:
+            keys = api.list_ssh_keys(group_name=args.group, node_id=args.node)
+            for (category, keymap) in keys.items():
+                print('#' + '-' * 71)
+                print('# %s' % (category,))
+                for (name, keys) in keymap.items():
+                    print('# - %s' % (name,))
+                    for k in keys:
+                        print(fa.format_ssh_key(k))
+        else:
+            keys = api.list_ssh_keys(decode_json=False, group_name=args.group, node_id=args.node)
+            _pp_yaml(args, keys)
 
-#     headers = {
-#         "X-API-Key": CONFIG["api-key"],
-#         "Accept-Encoding": "gzip",
-#         }
-#     params = {
-#         "hostname": args.node_name,
-#         "id": args.node,
-#         "email": CONFIG["email"],
-#         }
-#     url = "%s/user/ssh-key" % CONFIG["server"]
-#     r = requests.get(url, headers=headers, params=params)
-#     if r.status_code == 200:
-#         yaml.safe_dump(r.json(), stream=sys.stdout, indent=2,
-#                        default_flow_style=False)
-#     elif r.status_code == 404:
-#         sys.stderr.write("ERROR: Node is not found\n")
-#         sys.exit(15)
-#     else:
-#         sys.stderr.write("ERROR: Listing SSH keys failed (status code: %d)\n"
-#                          % r.status_code)
-#         sys.exit(10)
 
+def _collect_ssh_keys(args):
+    keyfile = fa.SshKeyFile()
+    for literal_key in args.key or []:
+        keyfile.load(io.StringIO(literal_key))
+    for filename in args.keyfile or []:
+        try:
+            with open(filename, 'rt') as fh:
+                contents = fh.read()
+        except:
+            raise fa.FruitApiError('Cannot read keyfile %s', (filename,))
+        else:
+            keyfile.load(io.StringIO(contents), filename=filename)
+    return keyfile.keys
 
 def add_ssh_key(config, args):
-    pass
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument("--keyfile", dest="keyfile", type=str,
-#                         help="File of public key to be added")
-#     parser.add_argument("--key", dest="key", type=str,
-#                         help="Public key to be added")
-#     parser.add_argument("--node", dest="node", type=str,
-#                         help="Remove container from a specific node")
-#     parser.add_argument("--name", dest="node_name", type=str,
-#                         help="Node's name")
-#     args = parser.parse_args()
-
-#     if args.keyfile is None and args.key is None:
-#         return
-#     if args.key is None and args.keyfile is not None:
-#         with open(args.keyfile) as f:
-#             args.key = f.read().strip()
-
-#     parts = re.split(r"\s+", args.key)
-#     if len(parts) < 2:
-#         sys.stderr.write("Invalid key.")
-#         sys.exit(1)
-#     if parts[0] not in SSH_KEY_TYPES:
-#         sys.stderr.write("Invalid key type: " + repr(parts[0]))
-#         sys.exit(2)
-#     ssh_key = {
-#         "type": parts[0],
-#         "key": parts[1],
-#         "comment": None if len(parts) < 3 else parts[2],
-#         }
-
-#     headers = {
-#         "Content-Type": "application/json",
-#         "X-API-Key": CONFIG["api-key"],
-#         "Accept-Encoding": "gzip",
-#         }
-#     params = {
-#         "hostname": args.node_name,
-#         "id": args.node,
-#         "email": CONFIG["email"],
-#         }
-#     url = "%s/user/ssh-key" % CONFIG["server"]
-#     r = requests.put(url, data=json.dumps(ssh_key), headers=headers,
-#                      params=params)
-#     if r.status_code == 200:
-#         print("SSH Key has been stored. It takes several minutes to be \
-# activated.")
-#     elif r.status_code == 404:
-#         sys.stderr.write("ERROR: Node is not found\n")
-#         sys.exit(3)
-#     else:
-#         sys.stderr.write("ERROR: Failed storing the SSH key (status code: %d)\
-# \n" % r.status_code)
-#         sys.exit(4)
+    with config as api:
+        keys = _collect_ssh_keys(args)
+        for key in keys:
+            ## TODO: make add_ssh_key actually send an array of keys to process!
+            api.add_ssh_key(key, group_name=args.group, node_id=args.node)
 
 
-def rm_ssh_key(config, args):
-    pass
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument("--keyfile", dest="keyfile", type=str,
-#                         help="File of public key to be removed")
-#     parser.add_argument("--key", dest="key", type=str,
-#                         help="Public key to be removed")
-#     parser.add_argument("--index", dest="index", type=int,
-#                         help="Index of public key")
-#     parser.add_argument("--node", dest="node", type=str,
-#                         help="Remove container from a specific node")
-#     parser.add_argument("--name", dest="node_name", type=str,
-#                         help="Node's name")
-#     args = parser.parse_args()
+def delete_ssh_key(config, args):
+    with config as api:
+        keys = _collect_ssh_keys(args)
+        for key in keys:
+            ## TODO: make delete_ssh_key actually send an array of keys to process!
+            api.delete_ssh_key(key, group_name=args.group, node_id=args.node)
 
-#     if args.keyfile is None and args.key is None and args.index is None:
-#         return
-#     if args.key is None and args.keyfile is not None:
-#         with open(args.keyfile) as f:
-#             args.key = f.read().strip()
 
-#     ssh_key = {"type": "", "key": "", "index": args.index}
-#     if args.key is not None:
-#         parts = re.split(r"\s+", args.key)
-#         if len(parts) < 2:
-#             sys.stderr.write("Invalid key.")
-#             sys.exit(1)
-#         if parts[0] not in SSH_KEY_TYPES:
-#             sys.stderr.write("Invalid key type:", parts[0])
-#             sys.exit(2)
-#         ssh_key["type"] = parts[0]
-#         ssh_key["key"] = parts[1]
-#         if len(parts) >= 3:
-#             ssh_key["comment"] = parts[2]
-
-#     headers = {
-#         "Content-Type": "application/json",
-#         "X-API-Key": CONFIG["api-key"],
-#         "Accept-Encoding": "gzip",
-#         }
-#     params = {
-#         "hostname": args.node_name,
-#         "id": args.node,
-#         "email": CONFIG["email"],
-#         }
-#     url = "%s/user/ssh-key" % CONFIG["server"]
-#     r = requests.delete(url, data=json.dumps(ssh_key), headers=headers,
-#                         params=params)
-#     if r.status_code == 200:
-#         print("SSH Key has been deleted.")
-#     elif r.status_code == 404:
-#         sys.stderr.write("ERROR: Node is not found\n")
-#         sys.exit(3)
-#     else:
-#         sys.stderr.write("ERROR: Failed deleting the SSH key (status code: %d)\
-# \n" % r.status_code)
-#         sys.exit(4)
+def authorized_keys(config, args):
+    with config as api:
+        ## TODO: once we move to public-keys, this will have to change
+        ## because we won't have the node's private key. Instead, a
+        ## new API will be needed for a user to get *exactly* the set
+        ## of SSH keys deployed to a particular node. One way to go
+        ## about that would be to include global SSH keys in the
+        ## list_ssh_keys output, alongside the user and node/group
+        ## keys.
+        sys.stdout.buffer.write(api.authorized_keys(args.node))
 
 
 def _add_group_argument(p):
@@ -449,23 +366,31 @@ def main(argv=sys.argv):
     p.set_defaults(handler=rm_container)
 
     p = sp.add_parser('key', help='SSH key management')
-    _add_node_group_filter_arguments(p)
     ssh_p = p
     p.set_defaults(handler=lambda config, args: ssh_p.print_help())
     ssp = p.add_subparsers()
 
     p = ssp.add_parser('add', help='Grant SSH key access to nodes')
+    _add_node_group_filter_arguments(p)
     _add_ssh_key_arguments(p)
     p.set_defaults(handler=add_ssh_key)
 
     p = ssp.add_parser('list', help='List SSH keys with access to nodes')
-    p.set_defaults(handler=list_ssh_key)
+    _add_node_group_filter_arguments(p)
+    g = p.add_mutually_exclusive_group()
+    g.add_argument('--ssh', action='store_true',
+                   help='Produce output in SSH public-key/authorized_keys format')
+    p.set_defaults(handler=list_ssh_keys)
 
     p = ssp.add_parser('remove', help='Delete SSH keys having access to nodes')
+    _add_node_group_filter_arguments(p)
     g = _add_ssh_key_arguments(p)
-    g.add_argument('--index', type=str, action='append',
-                   help='Specify key(s) by index in the output of "... key list"')
-    p.set_defaults(handler=rm_ssh_key)
+    p.set_defaults(handler=delete_ssh_key)
+
+    p = ssp.add_parser('authorized_keys', help='Retrieve the authorized_keys file for a given node')
+    p.add_argument('node', type=str,
+                   help="Specify which node's authorized_keys file to retrieve by node ID")
+    p.set_defaults(handler=authorized_keys)
 
     args = parser.parse_args(argv)
     config = Config()
