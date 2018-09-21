@@ -135,10 +135,10 @@ class FruitApi:
         result = self._call('GET', '/user/ssh-key', params=params).json()
         users = result.get('users', {})
         for (email, keys) in users.items():
-            users[email] = map(json_to_ssh_key, keys)
+            users[email] = list(map(json_to_ssh_key, keys))
         nodes = result.get('nodes', {})
         for (node_id, keys) in nodes.items():
-            nodes[node_id] = map(json_to_ssh_key, keys)
+            nodes[node_id] = list(map(json_to_ssh_key, keys))
         return result
 
     def add_ssh_key(self, key, group_name=None, node_id=None):
