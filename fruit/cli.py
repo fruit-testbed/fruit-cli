@@ -249,8 +249,8 @@ def _collect_ssh_keys(args):
         keyfile.load(io.StringIO(literal_key))
     for filename in args.keyfile or []:
         try:
-            with open(filename, 'rt') as fh:
-                contents = fh.read()
+            with open(filename, 'rb') as fh:
+                contents = fh.read().decode('utf-8')
         except:
             raise fa.FruitApiError('Cannot read keyfile %s', (filename,))
         else:
