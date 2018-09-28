@@ -285,6 +285,10 @@ def authorized_keys(config, args):
         sys.stdout.buffer.write(api.authorized_keys(args.node))
 
 
+def _add_help_to(p, sp):
+    h = sp.add_parser('help', help='Print help')
+    h.set_defaults(handler=lambda config, args: p.print_help())
+
 def _add_group_argument(p):
     p.add_argument('--group', metavar='NODEGROUP', type=str, default=None,
                    help='Restrict operation to the named node group')
@@ -336,12 +340,15 @@ def main(argv=sys.argv):
     NODE_HELP = ''' If --node is supplied, includes only the named node (or nothing at
     all, if that node is not in the selected --group).'''
 
+    _add_help_to(parser, sp)
+
     #------------------------------------------------------------------------
 
     p = sp.add_parser('account', help='Account management')
     account_p = p
     p.set_defaults(handler=lambda config, args: account_p.print_help())
     ssp = p.add_subparsers()
+    _add_help_to(p, ssp)
 
     p = ssp.add_parser('register', help='Register a new account',
                        description='''Interactive registration of a new
@@ -371,6 +378,7 @@ def main(argv=sys.argv):
     node_p = p
     p.set_defaults(handler=lambda config, args: node_p.print_help())
     ssp = p.add_subparsers()
+    _add_help_to(p, ssp)
 
     p = ssp.add_parser('list', help='List (all or some) nodes',
                       description='''Prints a YAML summary of accessible nodes to stdout.''' + GROUP_HELP)
@@ -395,6 +403,7 @@ def main(argv=sys.argv):
     container_p = p
     p.set_defaults(handler=lambda config, args: container_p.print_help())
     ssp = p.add_subparsers()
+    _add_help_to(p, ssp)
 
     p = ssp.add_parser('run', help='Deploy containers to nodes')
     p.add_argument('--publish', '-p', metavar='[IP:][HOSTPORT:]CONTAINERPORT',
@@ -430,6 +439,7 @@ def main(argv=sys.argv):
     ssh_p = p
     p.set_defaults(handler=lambda config, args: ssh_p.print_help())
     ssp = p.add_subparsers()
+    _add_help_to(p, ssp)
 
     p = ssp.add_parser('add', help='Grant SSH key access to nodes')
     _add_node_group_filter_arguments(p)
