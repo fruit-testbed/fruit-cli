@@ -36,7 +36,7 @@ class FruitApiError(Exception):
 class FruitApiRequestProblem(FruitApiError):
     def __init__(self, inner):
         self.inner = inner
-        super().__init__(str(inner))
+        super(FruitApiRequestProblem, self).__init__(str(inner))
 
 class FruitApiErrorResponse(FruitApiError):
     def __init__(self, response, **kwargs):
@@ -45,7 +45,7 @@ class FruitApiErrorResponse(FruitApiError):
             message = blob['title']
         except: # pragma: no cover
             message = response.reason
-        super().__init__(message, **kwargs)
+        super(FruitApiErrorResponse, self).__init__(message, **kwargs)
         self.response = response
 
 class FruitApiClientProblem(FruitApiErrorResponse): pass
