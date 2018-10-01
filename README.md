@@ -44,245 +44,196 @@ the login information to access Fruit Management APIs. It has two mandatory fiel
 - `api-key`, a 64-character string assigned to each user. You have to register yourself
   to get this key.
 
-There two optional fields:
+There is one optional field:
 
-* `editor`, the editor application used to edit the config file (default: `nano`).
-* `server`, the management server's endpoint (default: `https://fruit-testbed.org/api`).
+- `server`, the management server's endpoint (default: `https://fruit-testbed.org/api`).
 
 Example:
 
 ```yaml
 email: foo@bar.com
 api-key: 0123456789012345678901234567890123456789012345678901234567890123
-editor: vi
 ```
 
 
-## Commands
+## Examples
 
-The commands are: **register**, **config**, **forget-api-key**,
-**list-node**, **monitor**, **list-container**, **run-container**,
-**rm-container**, **list-ssh-key**, **add-ssh-key**, **rm-ssh-key**.
+### Retrieving node monitor data
 
+Use a tool like [`jq`](https://stedolan.github.io/jq/) to filter the
+output from the `node monitor` subcommand. (You will need to supply
+the `--json` global flag to `fruit-cli` to use it with `jq`.)
 
-### register
+- `fruit-cli node monitor --node pi123456`
+  shows monitoring data of node with ID=`pi123456`.
+- `fruit-cli --json node monitor | jq '.[].os.hostname'`
+  prints the hostname for each registered node.
+- `fruit-cli node monitor --group foo` shows monitoring data of nodes
+  with hostname `foo`.
+- `fruit-cli --json node monitor | jq '.[] | select(.location.city == "Glasgow").os.hostname'`
+  prints the hostname for each registered node located in Glasgow.
 
-`fruit-cli register <email-address>`
+### Starting containers
 
-**register** registers a new email-address.
-
-If the address has not been registered, then a confirmation email will be sent to
-the address. Otherwise, an email containing the account information will be sent.
-
-
-### config
-
-`fruit-cli config [--edit]`
-
-**config** prints **fruit-cli**'s configuration to the standard output.
-
-If option `--edit` is given, then it opens the config file (`~/.fruit-cli`) with a text editor.
-
-
-### forget-api-key
-
-`fruit-cli forget-api-key <email-address>`
-
-**forget-api-key** requests the management server to send the API key to the
-email address if it is registered.
-
-
-### list-node
-
-`fruit-cli list-node [--name <hostname>]`
-
-**list-node** prints a list of nodes (in JSON format) that belong to the user.
-
-If option `--name <hostname>` is given, then it only includes nodes whose hostname is equal to `<hostname>`. You can use `*` for pattern matching, for example:
+#### ...on a specific node
 
 ```shell
-fruit-cli list-node --name gms*
+fruit-cli container --node pi123 run -p 8080:80 --name nginx herry13/nginx:fruit
 ```
 
+The above will run a container with name `nginx` and image
+[`herry13/nginx:fruit`](https://hub.docker.com/r/herry13/nginx/), on
+node `pi123`, where container's port `80` is mapped to host's port
+`8080` so that the Nginx service can be accessed externally.
 
-### monitor
-
-`fruit-cli monitor [--node <id>] [--name <hostname>] [--where <path>=<value>] [path]`
-
-**monitor** prints monitoring data of all nodes belong to the user.
-
-If option `--node <id>` is given, then it prints monitoring data of node with ID=`<id>`,
-as long as the node belongs to the user.
-
-If option `--name <hostname>` is given, then it only includes nodes whose hostname is equal to `<hostname>`. You can use `*` for pattern matching.
-
-If option `--where <path>=<value>` is given, then it only includes nodes
-whose value of `<path>` is equal to `<value>`. Multiple clauses are separated
-with comma (`,`).
-
-If positional argument `[path]` is given, then it only prints the monitoring
-data with that path, which applies to each node.
-The path can be separated by `/` or `:`.
-For example: `fruit-cli monitor /network/eth0` prints the address of interface `eth0`
-of each node. `fruit-cli monitor :network:eth0` generates the same output.
-
-
-#### Examples
-
-- `fruit-cli monitor --node pi123456`, shows monitoring data of node with
-  ID=`pi123456`.
-- `fruit-cli monitor /os/hostname`, prints the hostname of all nodes.
-- `fruit-cli monitor --name foo`, shows monitoring data of node with
-  hostname=`foo`.
-- `fruit-cli monitor --where /location/city=Glasgow /os/hostname`, prints
-  the hostname of nodes located in Glasgow.
-
-
-### list-container
-
-`fruit-cli list-container [--node <id>] [--name <hostname>]`
-
-**list-container** prints a list of containers that have been submitted to the management
-server, that should be deployed on all nodes that belong to the user.
-
-If option `--node <id>` is given, then it prints a list of containers of node with
-ID=`<id>`, as long as the node belongs to the user.
-
-If option `--name <hostname>` is given, then it only includes nodes whose hostname is equal to `<hostname>`. You can use `*` for pattern matching.
-
-
-### run-container
-
-`fruit-cli run-container [--node <id>] [--name <hostname>] [-p <list>] [-v <list>] [--command <command>] <name> <image>`
-
-**run-container** submits a container specification to the management server,
-that should be deployed on all nodes that belong to the user. When the container
-with the same name is already exist, then it will be stopped and re-deployed again
-if there is a difference on the image, parameters, or command.
-Otherwise, no operation will be performed.
-
-If option `--node <id>` is given, then the container will only be deployed on node
-with ID=`<id>`, as long as the node belongs to the user.
-
-If option `--name <hostname>` is given, then it only includes nodes whose hostname is equal to `<hostname>`. You can use `*` for pattern matching.
-
-Arguments are:
-- `<name>`, container's name.
-- `<image>`, the container's image.
-
-Other options are:
-- `-p <list>`, publish a container's ports to the host. For example,
-  `-p 8000:80` publishes container's port 80 to the host's port 8000.
-  Multiple ports are separated with comma.
-- `-v <list>`, mount bind the host's volume to the container. This is very useful
-  to have a persistent file (_stateful container_) or sharing it with other containers. For example,
-  `-v /foo:/bar` mounts the host's `/data/.container-data/foo`
-  onto the container's `/bar`. Note that the host volume is always relative to `/data/.container-data`.
-- `-c <command>`, commands (in JSON array format) that will be run inside the container.
-- `-k <list>`, load kernel modules (comma separated) before starting the container.
-- `-dt <list>`, apply device-tree parameters (comma separated) before starting the container.
-- `-d <list>`, bind host devices (comma separated) to the container. [Here](https://github.com/fruit-testbed/fruit-agent/blob/1436ae0a99e784461a586feffea499841c39fe4c/fruit-container.in#L24) is the white-list of devices that can be bound to the container.
-
-> Note that the deployment process is performed asynchronously. It commonly takes 5-10
-> minutes until the container has been started on target node by **fruit-agent**.
-
-
-#### Example: run a container on a specific node
+#### ...on all nodes
 
 ```shell
-fruit-cli run-container \
-    --node pi123 --params '["-p", "8080:80"]' \
-    nginx herry13/nginx:fruit
+fruit-cli container run -p 8080:80 --name nginx herry13/nginx:fruit
 ```
 
-The above will run a container with name `nginx` and image `herry13/nginx:fruit`, on node `pi123`,
-where container's port `80` is mapped to host's port `8080` so that the Nginx service can be
-accessed from external.
+As above, but on all registered nodes accessible to the active user.
 
-
-#### Example: run a container on all nodes
+#### ...that need specific kernel modules, device-trees, and device-files
 
 ```shell
-fruit-cli run-container --params '["-p", "8080:80"]' \
-    nginx herry13/nginx:fruit
+fruit-cli container --node pi123 run -p 8000:80 \
+    --kernel-module i2c-dev \
+    --device-tree i2c_arm=on \
+    --device /dev/i2c-1 \
+    --name bme280 \
+    herry13/fruit-bme280
 ```
 
-The above will run a container with name `nginx` and image `herry13/nginx:fruit`, on all nodes
-that belong to the user, where container's port `80` is mapped to host's port `8080` so that
-the Nginx service can be accessed from external.
+The above will run a container with name `bme280` and image
+`herry13/fruit-bme280` on node `pi123`. Before running the container,
+`i2c-dev` kernel module must be loaded, `i2c_arm=on` device-tree
+overlay parameter must be applied, and `/dev/i2c-1` device file must
+be bound to the container. Port `80` of the container is bound to
+host's port `8000`.
 
+See also the
+[list of permitted device prefixes](https://github.com/fruit-testbed/fruit-agent/blob/3f56ef1b890d8b9f14e2bfa509c7d9cbf654d2e7/fruit-container.in#L24-L29).
 
-> The examples are using image `herry13/nginx:fruit` available in [Docker hub](https://hub.docker.com/r/herry13/nginx/).
+## Command Summary
 
-#### Example: run a container that needs specific kernel module, device-tree, and device-file.
+```
+usage: fruit-cli [-h] [--config FILENAME] [--json]
+                 {help,account,node,container,key} ...
+
+Interface to the FRμIT management server API. Your configuration file
+is [...]. Override its location with the FRUIT_CLI_CONFIG environment
+variable or the --config command-line option.
+
+positional arguments:
+  {help,account,node,container,key}
+    help                Print help
+    account             Account management
+    node                Node management
+    container           Container management
+    key                 SSH key management
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --config FILENAME, -c FILENAME
+                        Supply an alternate configuration file
+  --json                Produce output in JSON instead of YAML
+```
+
+### Limiting commands to selected nodes or node groups
+
+Many of the subcommands below accept `--group` and/or `--node`
+arguments, which select a subset of the user's registered nodes.
+
+If option `--group <hostname>` is given, the selected action will only
+include nodes whose hostname is equal to `<hostname>`. Wildcard `*` is
+available in `--group`; for example:
 
 ```shell
-fruit-cli run-container --node pi123 -p 8000:80 \
-    -k i2c-dev -dt i2c_arm=on -d /dev/i2c-1 \
-    bme280 herry13/fruit-bme280
+fruit-cli node list --name gms*
 ```
 
-The above will run a container with name `bme280` and image `herry13/fruit-bme280`, on node `pi123`. Before running the container, `i2c-dev` kernel module must be loaded, `i2c_arm=on` device-tree overlay parameter must be applied, and `/dev/i2c-1` device file must be bound to the container. Port `80` of the container is bound to host's port `8000`.
+If option `--node <nodeid>` is given, the selected action will only
+include the node with the given ID.
 
-A [permitted list of devices](https://github.com/fruit-testbed/fruit-agent/blob/1436ae0a99e784461a586feffea499841c39fe4c/fruit-container.in#L24) that can be bound are: `/dev/i2c*`, `/dev/spi*`, `/dev/ttyUSB*`.
+If both options are given, the logical AND of the two applies: only if
+the named node ID is within the named group (or group pattern) will it
+be selected.
 
+### Account commands
 
-### rm-container
+```
+usage: fruit-cli account [-h] {help,register,resend-api-key,config,delete} ...
 
-`fruit-cli rm-container [--node <id>] [--node <hostname>] <name>`
+positional arguments:
+  {help,register,resend-api-key,config,delete}
+    help                Print help
+    register            Register a new account
+    resend-api-key      Request an email containing the API Key
+    config              Print current configuration settings
+    delete              Delete account
 
-**rm-container** removes container with name=`<name>` from all nodes that belong to the user.
-For example:
-
-```shell
-fruit-cli rm-container nginx
+optional arguments:
+  -h, --help            show this help message and exit
 ```
 
-If option `--node <id>` is given, then the container will only be removed from node with
-ID=`<id>`, as long as the node belongs to the user. For example:
+### Node commands
 
-```shell
-fruit-cli rm-container --node pi123 nginx
+```
+usage: fruit-cli node [-h] {help,list,monitor,reset} ...
+
+positional arguments:
+  {help,list,monitor,reset}
+    help                Print help
+    list                List (all or some) nodes
+    monitor             Retrieve monitoring data from nodes
+    reset               Deregister and reset a specific node
+
+optional arguments:
+  -h, --help            show this help message and exit
 ```
 
-> Note that the deployment process is performed asynchronously. It commonly takes 5-10
-> minutes until the container has been removed from target node by **fruit-agent**.
+### Container commands
 
-If option `--name <hostname>` is given, then it only includes nodes whose hostname is equal to `<hostname>`. You can use `*` for pattern matching.
+Management of containers is performed *asynchronously*. It commonly
+takes 5-10 minutes until a new container appears on or is removed from
+a set of nodes.
 
+```
+usage: fruit-cli container [-h] [--group NODEGROUP] [--node NODEID]
+                           {help,run,list,remove} ...
 
-### list-ssh-key
+positional arguments:
+  {help,run,list,remove}
+    help                Print help
+    run                 Deploy containers to nodes
+    list                List containers on nodes
+    remove              Remove containers from nodes
 
-`list-ssh-key [--node <id>] [--name <hostname>]`
+optional arguments:
+  -h, --help            show this help message and exit
 
-**list-ssh-key** lists all registered ssh public keys.
+Node selection:
+  --group NODEGROUP     Restrict operation to the named node group
+  --node NODEID         Restrict operation to the named node
+```
 
+### Key commands
 
-### add-ssh-key
+Nodes may be access via SSH. These commands manipulate SSH keys
+allowed to access a user's nodes.
 
-`add-ssh-key [--keyfile <public-key-file>] [--node <id>] [--name <hostname>]`
+```
+usage: fruit-cli key [-h] {help,add,list,remove,authorized_keys} ...
 
-**add-ssh-key** adds a public key available in file `<public-key-file>` to the
-management server. In default, the public key will be applied on all nodes owned
-by the user.
+positional arguments:
+  {help,add,list,remove,authorized_keys}
+    help                Print help
+    add                 Grant SSH key access to nodes
+    list                List SSH keys with access to nodes
+    remove              Delete SSH keys having access to nodes
+    authorized_keys     Retrieve the authorized_keys file for a given node
 
-If option `--node <id>` is given, then the public key is only applied to the node
-with ID=`<id>`.
-
-If option `--name <hostname>` is given, then the public key is only applied to the
-node whose hostname=`<hostname>`.
-
-
-### rm-ssh-key
-
-`rm-ssh-key [--keyfile <public-key-file>] [--node <id>] [--name <hostname>]`
-
-**rm-ssh-key** removes a public key specified in file `<public-key-file>`
-from the management server. In default, the public key will be removed from all
-nodes owned by the user.
-
-If option `--node <id>` is given, then the public key is only removed from the node
-with ID=`<id>`.
-
-If option `--name <hostname>` is given, then the public key is only removed from
-the node whose hostname=`<hostname>`.
+optional arguments:
+  -h, --help            show this help message and exit
+```
