@@ -29,7 +29,7 @@ setup(
     packages=["fruit"],
     url="https://github.com/fruit-testbed/fruit-cli/",
     description="Command-line application plus API client for FRμIT cluster management",
-    install_requires=["requests", "PyYAML", "future"],
+    install_requires=["requests", "PyYAML", "future", "tonyg-rfc3339"],
     python_requires=">=2.7, <4",
     scripts=["bin/fruit-cli"],
 )
