@@ -3,7 +3,7 @@ fruit-cli
 
 [![PyPI version](https://badge.fury.io/py/fruit-cli.svg)](https://badge.fury.io/py/fruit-cli)
 
-A command-line application to manage Fruit federated cluster.
+A command-line application to manage a FRμIT federated cluster.
 
 
 ## To Install
@@ -19,7 +19,7 @@ Requirements:
 pip install fruit-cli
 ```
 
-To upgrade to newer version, you can invoke:
+To upgrade to a newer version, you can invoke:
 
 ```shell
 pip install -U fruit-cli
@@ -37,12 +37,15 @@ python setup.py install
 
 ## Config
 
-Config file of **fruit-cli** is at path `~/.fruit-cli`. It is a **YAML** file which holds
-the login information to access Fruit Management APIs. It has two mandatory fields:
+The default path for the `fruit-cli` configuration file is
+`~/.fruit-cli`. It is a YAML file which holds the login information to
+access the FRμIT management API. It has two mandatory fields:
 
-- `email`, the user's  email address (e.g. `foo@bar.com`).
-- `api-key`, a 64-character string assigned to each user. You have to register yourself
-  to get this key.
+- `email`, the user's email address (e.g. `foo@bar.com`).
+- `api-key`, a 64-character string assigned to each user. You have to
+  register an account (see
+  [`fruit-cli account register` below](#account-commands)) to get this
+  key.
 
 There is one optional field:
 
@@ -54,7 +57,6 @@ Example:
 email: foo@bar.com
 api-key: 0123456789012345678901234567890123456789012345678901234567890123
 ```
-
 
 ## Examples
 
