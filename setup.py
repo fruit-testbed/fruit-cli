@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 try:
     from setuptools import setup
 except ImportError:
@@ -5,9 +7,9 @@ except ImportError:
 
 setup(
     name="fruit-cli",
-    version="0.4.0",
-    author="Herry",
-    author_email="herry.herry@glasgow.ac.uk",
+    version="0.5.0",
+    author="FRμIT Developers",
+    author_email="tony.garnock-jones@glasgow.ac.uk",
     license="Creative Commons Attribution-ShareAlike 4.0 International Public",
     classifiers=[
         "Development Status :: 3 - Alpha",
@@ -24,9 +26,9 @@ setup(
     ],
     keywords="fruit-cli",
     platforms="any",
-    packages=["fruit", "fruit/cli"],
+    packages=["fruit"],
     url="https://github.com/fruit-testbed/fruit-cli/",
-    description="Command-line application of Fruit cluster management",
+    description="Command-line application plus API client for FRμIT cluster management",
     install_requires=["requests", "PyYAML", "future"],
     python_requires=">=2.7, <4",
     scripts=["bin/fruit-cli"],
