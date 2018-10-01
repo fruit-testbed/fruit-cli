@@ -222,7 +222,7 @@ Node selection:
 
 ### Key commands
 
-Nodes may be access via SSH. These commands manipulate SSH keys
+Nodes may be accessed via SSH. These commands manipulate SSH keys
 allowed to access a user's nodes.
 
 ```
