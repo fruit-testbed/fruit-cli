@@ -147,6 +147,10 @@ class Identity(object):
     def __ne__(self, other):
         return not (self == other)
 
+    def __repr__(self):
+        import base64
+        return 'Identity(%s)' % (base64.b64encode(self.vk.encode()),)
+
 class Signer(object):
     def __init__(self, secret_key=None):
         if secret_key is None:
