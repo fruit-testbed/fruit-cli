@@ -144,6 +144,9 @@ class Identity(object):
     def __eq__(self, other):
         return isinstance(other, Identity) and self.vk == other.vk
 
+    def __ne__(self, other):
+        return not (self == other)
+
 class Signer(object):
     def __init__(self, secret_key=None):
         if secret_key is None:
