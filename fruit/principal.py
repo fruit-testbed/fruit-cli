@@ -218,39 +218,34 @@ class Context(object):
 
 ###########################################################################
 
-import paramiko
+if __name__ == '__main__':
+    import paramiko
 
-# agent = paramiko.Agent()
-# print([(k.name, k.asbytes()) for k in agent.get_keys() if k.name == 'ssh-ed25519'])
-k = paramiko.Ed25519Key(filename="testkey-ssob", password=b'ssob')
-# print(k.asbytes())
-s = Signer(k._signing_key._signing_key[:32])
-i = s.identity
-sig = s.sign(b'hello')
-r = RootGrant(i)
-x = NotLaterThanCaveat(lifetime=datetime.timedelta(seconds = 1))
-d = DelegatedGrant(i, r, [x])
-d.sign_with(s)
+    # agent = paramiko.Agent()
+    # print([(k.name, k.asbytes()) for k in agent.get_keys() if k.name == 'ssh-ed25519'])
 
-v = csexp.encode(d.sexp())
-print(v)
-print(csexp.armor(d.sexp()))
-import base64
-print(len(v))
-print(len(csexp.armor(d.sexp())))
-print(len(csexp.armor(d.sexp(), compress=False)))
-d2 = _reg.deserialize(csexp.decode(v), Grant)
-print(d2)
-print(_reg.deserialize(csexp.unarmor(csexp.armor(d.sexp())), Grant))
-d2.check(i, Context({}))
-import time
-time.sleep(1)
-d2.check(i, Context({}))
+    k = paramiko.Ed25519Key(filename="testkey-ssob", password=b'ssob')
+    # print(k.asbytes())
 
-# tok = Token(i, lifetime = datetime.timedelta(seconds = 1))
-# tok.sign_with(s)
-# print(tok.signed_str)
-# print(Token.from_signed_str(tok.signed_str))
-# import time
-# time.sleep(2)
-# print(Token.from_signed_str(tok.signed_str))
+    s = Signer(k._signing_key._signing_key[:32])
+    i = s.identity
+    sig = s.sign(b'hello')
+    r = RootGrant(i)
+    x = NotLaterThanCaveat(lifetime=datetime.timedelta(seconds = 1))
+    d = DelegatedGrant(i, r, [x])
+    d.sign_with(s)
+
+    v = csexp.encode(d.sexp())
+    print(v)
+    print(csexp.armor(d.sexp()))
+    import base64
+    print(len(v))
+    print(len(csexp.armor(d.sexp())))
+    print(len(csexp.armor(d.sexp(), compress=False)))
+    d2 = _reg.deserialize(csexp.decode(v), Grant)
+    print(d2)
+    print(_reg.deserialize(csexp.unarmor(csexp.armor(d.sexp())), Grant))
+    d2.check(i, Context({}))
+    import time
+    time.sleep(1)
+    d2.check(i, Context({}))
