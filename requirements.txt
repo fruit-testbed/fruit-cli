@@ -2,3 +2,5 @@ requests
 PyYAML
 future
 tonyg-rfc3339
+paramiko
+pynacl
