@@ -236,7 +236,6 @@ if __name__ == '__main__':
     d.sign_with(s)
 
     v = csexp.encode(d.sexp())
-    print(v)
     print(csexp.armor(d.sexp()))
     import base64
     print(len(v))
