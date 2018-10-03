@@ -18,8 +18,10 @@
 # <caveat> = (valid-between <rfc3339-datetime> <rfc3339-datetime>)
 #          | (== <context-variable-name> <literal-value>)
 
+import base64
 import rfc3339
 import datetime
+import paramiko
 import nacl.signing, nacl.exceptions
 import fruit.csexp as csexp
 
@@ -151,6 +153,9 @@ class DelegatedGrant(Grant, SignedItem):
 ###########################################################################
 ## Identity & Signer
 
+SSH_PUBLIC_KEY_BLOB_PREFIX = b'\x00\x00\x00\x0bssh-ed25519\x00\x00\x00 '
+SSH_SIGNATURE_BLOB_PREFIX = b'\x00\x00\x00\x0bssh-ed25519\x00\x00\x00@'
+
 class Identity(object):
     def __init__(self, public_key):
         _ensure_pk(public_key)
@@ -178,29 +183,39 @@ class Identity(object):
     def __ne__(self, other):
         return not (self == other)
 
-    def __repr__(self):
-        import base64
+    def as_ssh_blob(self):
+        return SSH_PUBLIC_KEY_BLOB_PREFIX + self.public_key
+
+    def as_base64(self):
         s = base64.b64encode(self.vk.encode()).decode('us-ascii')
-        s = s.replace('=', '')
-        return 'Identity(%s)' % (s,)
+        return s.replace('=', '')
+
+    @staticmethod
+    def from_base64(bs):
+        if not isinstance(bs, bytes):
+            bs = bs.encode('us-ascii')
+        bs = bs + b'=' * (-len(bs) % 4)  ## re-pad
+        bs = base64.b64decode(bs)
+        return Identity(bs)
+
+    def __repr__(self):
+        return 'Identity(%s)' % (self.as_base64(),)
 
 class Signer(object):
-    def __init__(self, secret_key=None):
-        if secret_key is None:
-            secret_key = nacl.signing.SigningKey.generate()._signing_key[:32]
-        self.sk = nacl.signing.SigningKey(secret_key)
-
     @property
     def identity(self):
-        return Identity(self.sk.verify_key.encode())
+        return self._identity()
 
     def sign(self, on_behalf_of_identity, msgbytes):
         if self.identity != on_behalf_of_identity:
             raise ValueError('Cannot sign with signer not matching identity')
-        return self.sk.sign(msgbytes).signature
+        return self._sign(msgbytes)
 
-    def secret_key_bytes(self):
-        return self.sk._signing_key[:32]
+    def _identity(self):
+        raise NotImplementedError('Subclass responsibility')
+
+    def _sign(self, msgbytes):
+        raise NotImplementedError('Subclass responsibility')
 
 ###########################################################################
 ## Caveats
@@ -335,19 +350,86 @@ class Request(SignedItem):
 _reg.record(b'request', Request)(Request.deserialize)
 
 ###########################################################################
+## Variations on Signer: Local SSH private key; SSH-agent based
+
+class PasswordRequired(RuntimeError): pass
+
+class LocalSigner(Signer):
+    def __init__(self, secret_key=None):
+        if secret_key is None:
+            secret_key = nacl.signing.SigningKey.generate()._signing_key[:32]
+        self.sk = nacl.signing.SigningKey(secret_key)
+
+    def _identity(self):
+        return Identity(self.sk.verify_key.encode())
+
+    def _sign(self, msgbytes):
+        return self.sk.sign(msgbytes).signature
+
+    def secret_key_bytes(self):
+        return self.sk._signing_key[:32]
+
+    @staticmethod
+    def from_ssh_private_key(filename, password=None, identity=None):
+        try:
+            k = paramiko.Ed25519Key(filename=filename, password=password)
+        except paramiko.ssh_exception.PasswordRequiredException:
+            raise PasswordRequired()
+        except paramiko.ssh_exception.SSHException:
+            return None
+        else:
+            if identity is None or k.asbytes() == identity.as_ssh_blob():
+                return LocalSigner(k._signing_key._signing_key[:32])
+            return None
+
+class AgentSigner(Signer):
+    def __init__(self, agent, agent_key):
+        self.agent = agent
+        self.agent_key = agent_key
+        bs = agent_key.asbytes()
+        if not bs.startswith(SSH_PUBLIC_KEY_BLOB_PREFIX):
+            raise ValueError('Invalid public key')
+        self.public_key = agent_key.asbytes()[len(SSH_PUBLIC_KEY_BLOB_PREFIX):]
+
+    def _identity(self):
+        return Identity(self.public_key)
+
+    def _sign(self, msgbytes):
+        blob = self.agent_key.sign_ssh_data(msgbytes)
+        if not blob.startswith(SSH_SIGNATURE_BLOB_PREFIX):
+            raise ValueError('Invalid signature from ssh-agent')
+        return blob[len(SSH_SIGNATURE_BLOB_PREFIX):]
+
+    @staticmethod
+    def lookup(identity):
+        expected_blob = identity.as_ssh_blob()
+        agent = paramiko.Agent()
+        for k in agent.get_keys():
+            if k.asbytes() == expected_blob:
+                return AgentSigner(agent, k)
+        return None
+
+###########################################################################
 
 if __name__ == '__main__':
-    import paramiko
+    def get_signer_for(identity, key_filename=None, key_password=None):
+        k = AgentSigner.lookup(identity)
+        if k:
+            return k
 
-    # agent = paramiko.Agent()
-    # print([(k.name, k.asbytes()) for k in agent.get_keys() if k.name == 'ssh-ed25519'])
+        try:
+            return LocalSigner.from_ssh_private_key(key_filename, None, identity=identity)
+        except PasswordRequired:
+            return LocalSigner.from_ssh_private_key(key_filename, key_password, identity=identity)
 
-    k = paramiko.Ed25519Key(filename="testkey-ssob", password=b'ssob')
-    # print(k.asbytes())
+    s = get_signer_for(Identity.from_base64('CN94hrKIFDCF/DherJg4Et1ZB8dbG3766mAlVCgvp9Q'),
+                       key_filename='testkey-ssob',
+                       key_password=b'ssob')
+    if not s:
+        raise Exception('No key available')
 
-    s = Signer(k._signing_key._signing_key[:32])
     i = s.identity
-    s2 = Signer()
+    s2 = LocalSigner()
     i2 = s2.identity
 
     sig = s.sign(i, b'hello')
@@ -366,7 +448,6 @@ if __name__ == '__main__':
     print(csexp.armor(d.sexp()))
     import pprint
     print(pprint.pformat(d.sexp(), indent=2))
-    import base64
     print(len(v))
     print(len(csexp.armor(d.sexp())))
     print(len(csexp.armor(d.sexp(), compress=False)))
