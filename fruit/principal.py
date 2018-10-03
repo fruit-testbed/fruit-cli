@@ -1,23 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Authority delegation.
-#
-# Authority is either
-#  - primordial (intrinsic capability)
-#  - a delegation, potentially attenuating
-#
-# <principal> = <32 bytes of ed25519 public-key>
-#
-# <grant> = (root <recipient:principal>)
-#         | (grant <recipient:principal>
-#                  <grant>
-#                  <caveats:list-of(caveat)>
-#                  <sig-val(grant.recipient, (recipient,grant,caveats))> )
-#
-# <caveat> = (valid-between <rfc3339-datetime> <rfc3339-datetime>)
-#          | (== <context-variable-name> <literal-value>)
-
 import base64
 import rfc3339
 import datetime
@@ -69,92 +52,12 @@ class SignedItem(object):
             raise ValueError('Cannot serialize non-signed item')
 
 ###########################################################################
-## Grants
-
-class NotAuthorized(RuntimeError): pass
-
-class Grant(object):
-    def holder(self):
-        raise NotImplementedError('Subclass responsibility')
-
-    def check(self, agent, context):
-        raise NotImplementedError('Subclass responsibility')
-
-class RootGrant(Grant):
-    def __init__(self, identity):
-        self.identity = identity
-
-    def holder(self):
-        return self.identity
-
-    def sexp(self):
-        return [b'root', self.identity.sexp()]
-
-    def check(self, agent, context):
-        if agent != self.identity:
-            raise NotAuthorized('Expected agent to be %r, was %r' % (
-                self.identity,
-                agent))
-
-    @_reg.record(b'root', Grant)
-    @staticmethod
-    def deserialize(pk):
-        return RootGrant(Identity(pk))
-
-    def __repr__(self):
-        return '<Root %r>' % (self.identity,)
-
-class DelegatedGrant(Grant, SignedItem):
-    def __init__(self, recipient, base, caveats, signature=None):
-        self.recipient = recipient
-        self.base = base
-        self.caveats = caveats
-        self.attach_signature(signature)
-
-    def holder(self):
-        return self.recipient
-
-    def signing_identity(self):
-        return self.base.holder()
-
-    def signed_message(self):
-        return csexp.encode([self.recipient.sexp(),
-                             self.base.sexp(),
-                             [c.sexp() for c in self.caveats]])
-
-    def sexp(self):
-        self.ensure_signed()
-        return [b'grant',
-                self.recipient.sexp(),
-                self.base.sexp(),
-                [c.sexp() for c in self.caveats],
-                self.signature]
-
-    def check(self, agent, context):
-        if agent != self.recipient:
-            raise NotAuthorized('Expected agent to be %r, was %r' % (
-                self.recipient,
-                agent))
-        self.base.check(self.base.holder(), context)
-        for c in self.caveats:
-            c.check(agent, context)
-
-    @_reg.record(b'grant', Grant)
-    @staticmethod
-    def deserialize(recipient, base, caveats, sigval):
-        return DelegatedGrant(Identity(recipient),
-                              _reg.deserialize(base, Grant),
-                              [_reg.deserialize(c, Caveat) for c in caveats],
-                              sigval)
-
-    def __repr__(self):
-        return '<Delegation of %r to %r subject to %r>' % (self.base, self.recipient, self.caveats)
-
-###########################################################################
 ## Identity & Signer
 
 SSH_PUBLIC_KEY_BLOB_PREFIX = b'\x00\x00\x00\x0bssh-ed25519\x00\x00\x00 '
 SSH_SIGNATURE_BLOB_PREFIX = b'\x00\x00\x00\x0bssh-ed25519\x00\x00\x00@'
+
+class NotAuthorized(RuntimeError): pass
 
 class Identity(object):
     def __init__(self, public_key):
@@ -218,68 +121,7 @@ class Signer(object):
         raise NotImplementedError('Subclass responsibility')
 
 ###########################################################################
-## Caveats
-
-class Caveat(object):
-    def check(self, agent, context):
-        raise NotImplementedError('Subclass responsibility')
-
-class ValidBetweenCaveat(Caveat):
-    def __init__(self, notafter=None, lifetime=None, notbefore=None):
-        if notbefore is None:
-            notbefore = rfc3339.now()
-        self.notbefore = notbefore
-        if notafter is not None and lifetime is None:
-            self.notafter = notafter
-        elif notafter is None and lifetime is not None:
-            self.notafter = notbefore + lifetime
-        else:
-            raise ValueError('Supply either notafter or lifetime (not both) to ValidBetweenCaveat')
-
-    def sexp(self):
-        return [b'valid-between', rfc3339_sexp(self.notbefore), rfc3339_sexp(self.notafter)]
-
-    def check(self, agent, context):
-        if context.now < self.notbefore:
-            raise NotAuthorized('Not valid: too early')
-        if context.now >= self.notafter:
-            raise NotAuthorized('Not valid: expired')
-
-    @_reg.record(b'valid-between', Caveat)
-    @staticmethod
-    def deserialize(nb, na):
-        return ValidBetweenCaveat(notbefore=_reg.deserialize(nb, datetime.datetime),
-                                  notafter=_reg.deserialize(na, datetime.datetime))
-
-    def __repr__(self):
-        return '<"%s <= time < %s">' % (self.notbefore, self.notafter)
-
-class ContextEqualityCaveat(Caveat):
-    def __init__(self, property_name, expected_value):
-        self.property_name = property_name
-        self.expected_value = expected_value
-
-    def sexp(self):
-        return [b'==', self.property_name.encode('utf-8'), self.expected_value]
-
-    @_reg.record(b'==', Caveat)
-    @staticmethod
-    def deserialize(property_name, expected_value):
-        return ContextEqualityCaveat(property_name.decode('utf-8'), expected_value)
-
-    def check(self, agent, context):
-        if self.property_name not in context.props:
-            raise NotAuthorized('Expected context property %r to be %r, was missing' % (
-                self.property_name,
-                self.expected_value))
-        if context.props[self.property_name] != self.expected_value:
-            raise NotAuthorized('Expected context property %r to be %r, was %r' % (
-                self.property_name,
-                self.expected_value,
-                context.props[self.property_name]))
-
-###########################################################################
-## Caveat/request context
+## Requests and Contexts
 
 class Context(object):
     def __init__(self, props, now=None):
@@ -312,9 +154,8 @@ class Context(object):
 _reg.record(b'context', Context)(Context.deserialize)
 
 class Request(SignedItem):
-    def __init__(self, agent, grant, agent_context, signature=None):
+    def __init__(self, agent, agent_context, signature=None):
         self.agent = agent
-        self.grant = grant
         self.agent_context = agent_context
         self.attach_signature(signature)
 
@@ -323,25 +164,28 @@ class Request(SignedItem):
 
     def signed_message(self):
         return csexp.encode([self.agent.sexp(),
-                             self.grant.sexp(),
                              self.agent_context.sexp()])
 
     def sexp(self):
         self.ensure_signed()
         return [b'request',
                 self.agent.sexp(),
-                self.grant.sexp(),
                 self.agent_context.sexp(),
                 self.signature]
 
-    def check(self, service_context):
-        context = service_context.prefix('service.').merge(self.agent_context.prefix('agent.'))
-        self.grant.check(self.agent, context)
+    def is_fresh(self,
+                 backwards=datetime.timedelta(minutes=-10),
+                 forwards=datetime.timedelta(minutes=5)):
+        now = rfc3339.now()
+        if self.agent_context.now < now + backwards:
+            return False
+        if self.agent_context.now >= now + forwards:
+            return False
+        return True
 
     @staticmethod
-    def deserialize(agent, grant, agent_context, signature):
+    def deserialize(agent, agent_context, signature):
         return Request(Identity(agent),
-                       _reg.deserialize(grant, Grant),
                        _reg.deserialize(agent_context, Context),
                        signature)
 
@@ -410,6 +254,9 @@ class AgentSigner(Signer):
 ###########################################################################
 
 if __name__ == '__main__':
+    import pprint
+    import time
+
     def get_signer_for(identity, key_filename=None, key_password=None):
         k = AgentSigner.lookup(identity)
         if k:
@@ -427,41 +274,24 @@ if __name__ == '__main__':
         raise Exception('No key available')
 
     i = s.identity
-    s2 = LocalSigner()
-    i2 = s2.identity
 
     sig = s.sign(i, b'hello')
     print(i.unwrap(b'hello', sig))
     print(i.unwrap(b'hello2', sig))
     print(i.unwrap(b'hello', sig + b'x'))
 
-    r = RootGrant(i)
-    x = ValidBetweenCaveat(lifetime=datetime.timedelta(seconds = 1))
-    d = DelegatedGrant(i2, r, [x,
-                               ContextEqualityCaveat('agent.v', b'A'),
-                               ContextEqualityCaveat('service.v', b'B')])
-    d.sign_with(s)
-
-    v = csexp.encode(d.sexp())
-    print(csexp.armor(d.sexp()))
-    import pprint
-    print(pprint.pformat(d.sexp(), indent=2))
-    print(len(v))
-    print(len(csexp.armor(d.sexp())))
-    print(len(csexp.armor(d.sexp(), compress=False)))
-    d2 = _reg.deserialize(csexp.decode(v), Grant)
-    print(d2)
-    print(_reg.deserialize(csexp.unarmor(csexp.armor(d.sexp())), Grant))
-    d2.check(i2, Context({'agent.v': b'A', 'service.v': b'B'}))
-
-    req = Request(i2, d2, Context({'v': b'A'}))
-    req.sign_with(s2)
+    req = Request(i, Context({'v': b'A'}))
+    req.sign_with(s)
     print(pprint.pformat(req.sexp(), indent=2))
     print(csexp.armor(req.sexp()))
+    print(len(csexp.encode(req.sexp())))
+    print(len(csexp.armor(req.sexp())))
+    print(len(csexp.armor(req.sexp(), compress=False)))
 
-    req.check(Context({'v': b'B'}))
-    print("Check passed!")
+    def judge():
+        print("Fresh" if req.is_fresh(backwards=datetime.timedelta(seconds=0),
+                                      forwards=datetime.timedelta(seconds=1)) else "Not fresh")
 
-    import time
+    judge()
     time.sleep(1)
-    d2.check(i2, Context({'agent_v': b'A', 'service_v': b'B'}))
+    judge()
