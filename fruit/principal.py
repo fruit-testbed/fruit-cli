@@ -336,8 +336,6 @@ class Request(SignedItem):
 
     def check(self, service_context):
         context = service_context.prefix('service.').merge(self.agent_context.prefix('agent.'))
-        if not context:
-            raise NotAuthorized('Inconsistent agent and service contexts')
         self.grant.check(self.agent, context)
 
     @staticmethod
