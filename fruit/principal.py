@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# [not-later-than(rfc3339("2018-10-01T17:56:33+01:00"))]
-# [not-later-than(rfc3339("2018-10-01T16:56:33Z"))]
-
 # Authority delegation.
 #
 # Authority is either
@@ -18,7 +15,7 @@
 #                  <caveats:list-of(caveat)>
 #                  <sig-val(grant.recipient, (recipient,grant,caveats))> )
 #
-# <caveat> = (not-later-than <rfc3339-datetime>)
+# <caveat> = (valid-between <rfc3339-datetime> <rfc3339-datetime>)
 #          | (== <context-variable-name> <literal-value>)
 
 import rfc3339
@@ -71,6 +68,9 @@ class RootGrant(Grant):
     def deserialize(pk):
         return RootGrant(Identity(pk))
 
+    def __repr__(self):
+        return '<Root %r>' % (self.identity,)
+
 class DelegatedGrant(Grant):
     def __init__(self, recipient, base, caveats, signature=None):
         self.recipient = recipient
@@ -121,6 +121,9 @@ class DelegatedGrant(Grant):
                               [_reg.deserialize(c, Caveat) for c in caveats],
                               sigval)
 
+    def __repr__(self):
+        return '<Delegation of %r to %r subject to %r>' % (self.base, self.recipient, self.caveats)
+
 ###########################################################################
 ## Identity & Signer
 
@@ -149,7 +152,9 @@ class Identity(object):
 
     def __repr__(self):
         import base64
-        return 'Identity(%s)' % (base64.b64encode(self.vk.encode()),)
+        s = base64.b64encode(self.vk.encode()).decode('us-ascii')
+        s = s.replace('=', '')
+        return 'Identity(%s)' % (s,)
 
 class Signer(object):
     def __init__(self, secret_key=None):
@@ -174,26 +179,37 @@ class Caveat(object):
     def check(self, agent, context):
         raise NotImplementedError('Subclass responsibility')
 
-class NotLaterThanCaveat(Caveat):
-    def __init__(self, deadline=None, lifetime=None):
-        if deadline is not None and lifetime is None:
-            self.deadline = deadline
-        elif deadline is None and lifetime is not None:
-            self.deadline = rfc3339.now() + lifetime
+class ValidBetweenCaveat(Caveat):
+    def __init__(self, notafter=None, lifetime=None, notbefore=None):
+        if notbefore is None:
+            notbefore = rfc3339.now()
+        self.notbefore = notbefore
+        if notafter is not None and lifetime is None:
+            self.notafter = notafter
+        elif notafter is None and lifetime is not None:
+            self.notafter = notbefore + lifetime
         else:
-            raise ValueError('Supply either (but not both) deadline or lifetime to NotLaterThanCaveat ctor')
+            raise ValueError('Supply either notafter or lifetime (not both) to ValidBetweenCaveat')
 
     def sexp(self):
-        return [b'not-later-than', [b'rfc3339', self.deadline.isoformat().encode('us-ascii')]]
+        return [b'valid-between',
+                [b'rfc3339', self.notbefore.isoformat().encode('us-ascii')],
+                [b'rfc3339', self.notafter.isoformat().encode('us-ascii')]]
 
     def check(self, agent, context):
-        if context.now >= self.deadline:
+        if context.now < self.notbefore:
+            raise NotAuthorized()
+        if context.now >= self.notafter:
             raise NotAuthorized()
 
-    @_reg.record(b'not-later-than', Caveat)
+    @_reg.record(b'valid-between', Caveat)
     @staticmethod
-    def deserialize(r):
-        return NotLaterThanCaveat(deadline=_reg.deserialize(r, datetime.datetime))
+    def deserialize(nb, na):
+        return ValidBetweenCaveat(notbefore=_reg.deserialize(nb, datetime.datetime),
+                                  notafter=_reg.deserialize(na, datetime.datetime))
+
+    def __repr__(self):
+        return '<"%s < time <= %s">' % (self.notbefore, self.notafter)
 
 class ContextEqualityCaveat(Caveat):
     def __init__(self, property_name, expected_value):
@@ -229,14 +245,21 @@ if __name__ == '__main__':
 
     s = Signer(k._signing_key._signing_key[:32])
     i = s.identity
+    s2 = Signer()
+    i2 = s2.identity
+
     sig = s.sign(b'hello')
+    print(i.verify(b'hello', sig))
+
     r = RootGrant(i)
-    x = NotLaterThanCaveat(lifetime=datetime.timedelta(seconds = 1))
-    d = DelegatedGrant(i, r, [x])
+    x = ValidBetweenCaveat(lifetime=datetime.timedelta(seconds = 1))
+    d = DelegatedGrant(i2, r, [x])
     d.sign_with(s)
 
     v = csexp.encode(d.sexp())
     print(csexp.armor(d.sexp()))
+    import pprint
+    print(pprint.pformat(d.sexp(), indent=2))
     import base64
     print(len(v))
     print(len(csexp.armor(d.sexp())))
@@ -244,7 +267,7 @@ if __name__ == '__main__':
     d2 = _reg.deserialize(csexp.decode(v), Grant)
     print(d2)
     print(_reg.deserialize(csexp.unarmor(csexp.armor(d.sexp())), Grant))
-    d2.check(i, Context({}))
+    d2.check(i2, Context({}))
     import time
     time.sleep(1)
-    d2.check(i, Context({}))
+    d2.check(i2, Context({}))
