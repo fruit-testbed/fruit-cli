@@ -6,18 +6,6 @@ import datetime
 import fruit.auth.pure_eddsa
 import fruit.auth.rfc3339
 
-def _ensure_pk(bs):
-    if not (isinstance(bs, bytes) and len(bs) == 32): ## ed25519 public-key length
-        raise ValueError('Invalid public-key format: %r' % (bs,))
-
-def _ensure_sk(bs):
-    if not (isinstance(bs, bytes) and len(bs) == 32): ## ed25519 secret-key length (!)
-        raise ValueError('Invalid secret-key format: %r' % (bs,))
-
-def _ensure_sig(bs):
-    if not (isinstance(bs, bytes) and len(bs) == 64): ## ed25519 signature length
-        raise ValueError('Invalid signature format: %r' % (bs,))
-
 def _b64(bs):
     return base64.b64encode(bs).rstrip(b'=')
 
@@ -34,12 +22,13 @@ class NotAuthorized(RuntimeError): pass
 
 class Identity(object):
     def __init__(self, public_key):
-        _ensure_pk(public_key)
+        if not (isinstance(public_key, bytes) and len(public_key) == 32):
+            raise ValueError('Invalid public-key format: %r' % (public_key,))
         self.public_key = public_key ## bytes
 
     def unwrap(self, msgbytes, sigbytes):
         try:
-            pure_eddsa.verify(self.public_key, sigbytes, msgbytes)
+            fruit.auth.pure_eddsa.verify(self.public_key, sigbytes, msgbytes)
         except:
             return None
         else:
@@ -82,15 +71,16 @@ class LocalSigner(Signer):
     def __init__(self, secret_key=None):
         if secret_key is None:
             secret_key = os.urandom(32)
-        _ensure_sk(secret_key)
+        if not (isinstance(secret_key, bytes) and len(secret_key) == 32):
+            raise ValueError('Invalid secret-key format: %r' % (secret_key,))
         self.secret_key = secret_key
-        self.public_key = pure_eddsa.create_verifying_key(secret_key)
+        self.public_key = fruit.auth.pure_eddsa.create_verifying_key(secret_key)
 
     def _identity(self):
         return Identity(self.public_key)
 
     def _sign(self, msgbytes):
-        return pure_eddsa.signature(msgbytes, self.secret_key, self.public_key)
+        return fruit.auth.pure_eddsa.signature(msgbytes, self.secret_key, self.public_key)
 
 ###########################################################################
 ## Authentication tokens and token freshness
@@ -105,10 +95,9 @@ def authenticated_identity(header_string,
     identity = Identity(_unb64(public_key_b64))
     timestamp = _unb64(timestamp_b64)
     signature = _unb64(signature_b64)
-    _ensure_sig(signature)
     identity.verify(timestamp, signature)
-    now = rfc3339.now()
-    timestamp = rfc3339.parse_datetime(timestamp.decode('us-ascii'))
+    now = fruit.auth.rfc3339.now()
+    timestamp = fruit.auth.rfc3339.parse_datetime(timestamp.decode('us-ascii'))
     if timestamp < now - backwards:
         raise NotAuthorized('Expired')
     if timestamp >= now + forwards:
@@ -116,7 +105,7 @@ def authenticated_identity(header_string,
     return identity
 
 def make_authenticated_identity(identity, signer):
-    timestamp = rfc3339.now().isoformat().encode('us-ascii')
+    timestamp = fruit.auth.rfc3339.now().isoformat().encode('us-ascii')
     signature = signer.sign(identity, timestamp)
     return b';'.join((b'1',
                       _b64(identity.public_key),
