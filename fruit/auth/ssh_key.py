@@ -9,7 +9,7 @@ import fruit.auth
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 
-from .ssh_io import *
+from .bin_io import *
 
 class BadPassword(ValueError):
     '''Invalid passphrase given when unprotecting a key'''
@@ -52,8 +52,7 @@ class SshPrivateKey(object):
                 (salt, kdfoptions) = parse_str(self.kdfoptions)
                 (rounds, kdfoptions) = parse_int(kdfoptions)
                 parse_end(kdfoptions)
-                key_and_iv = bcrypt.kdf(password, salt, 32+16, rounds,
-                                        ignore_few_rounds=True) ## nothing much can be done
+                key_and_iv = bcrypt.kdf(password, salt, 32+16, rounds)
                 c = Cipher(algorithms.AES(key_and_iv[:32]),
                            modes.CTR(key_and_iv[32:]),
                            backend=default_backend())

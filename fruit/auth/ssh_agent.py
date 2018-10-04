@@ -7,7 +7,7 @@ import struct
 
 import fruit.auth
 
-from .ssh_io import *
+from .bin_io import *
 
 SSH_AGENTC_REQUEST_IDENTITIES = 11
 SSH_AGENT_IDENTITIES_ANSWER = 12

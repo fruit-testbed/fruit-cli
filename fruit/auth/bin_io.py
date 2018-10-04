@@ -1,14 +1,22 @@
 # -*- coding: utf-8 -*-
-# Various SSH protocol & structure constants and formats
+# Binary parsing and formatting, plus SSH protocol & structure constants and formats
 
 import struct
 
+class BadPassword(ValueError):
+    '''Invalid passphrase given when unprotecting a key'''
+    pass
+
 class SyntaxError(ValueError):
-    '''A syntax error parsing an SSH data structure (e.g. key file, network message etc)'''
+    '''A syntax error parsing a data structure (e.g. key file, network message etc)'''
     pass
 
 SSH_PUBLIC_KEY_BLOB_PREFIX = b'\x00\x00\x00\x0bssh-ed25519\x00\x00\x00 '
 SSH_SIGNATURE_BLOB_PREFIX = b'\x00\x00\x00\x0bssh-ed25519\x00\x00\x00@'
+
+def parse_chunk(length, bs):
+    if len(bs) < length: raise SyntaxError()
+    return (bs[:length], bs[length:])
 
 def parse_expected(expected, bs):
     if not bs.startswith(expected): raise SyntaxError()
