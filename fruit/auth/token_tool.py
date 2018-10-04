@@ -21,7 +21,7 @@ def _main():
             sk.unprotect(password)
         except:
             sys.exit(1)
-    identity = fruit.auth.Identity(sk.public_key)
+    identity = sk.public_key
     print(fruit.auth.make_authenticated_identity(identity, sk.signer_for_identity(identity)))
     sys.exit(0)
 

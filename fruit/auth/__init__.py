@@ -16,40 +16,15 @@ def _unb64(bs):
     return base64.b64decode(bs)
 
 ###########################################################################
-## Identity & Signer
+## Signer
 
 class NotAuthorized(RuntimeError): pass
 
-class Identity(object):
-    def __init__(self, public_key):
-        if not (isinstance(public_key, bytes) and len(public_key) == 32):
-            raise ValueError('Invalid public-key format: %r' % (public_key,))
-        self.public_key = public_key ## bytes
-
-    def unwrap(self, msgbytes, sigbytes):
-        try:
-            fruit.auth.pure_eddsa.verify(self.public_key, sigbytes, msgbytes)
-        except:
-            return None
-        else:
-            return msgbytes
-
-    def verify(self, msgbytes, sigbytes):
-        if self.unwrap(msgbytes, sigbytes) is None:
-            raise NotAuthorized('Bad signature')
-
-    def __eq__(self, other):
-        return isinstance(other, Identity) and self.public_key == other.public_key
-
-    def __ne__(self, other):
-        return not (self == other)
-
-    @staticmethod
-    def from_base64(bs):
-        return Identity(_unb64(bs))
-
-    def __repr__(self):
-        return 'Identity(%s)' % (_b64(self.public_key),)
+def verify(pkbytes, msgbytes, sigbytes):
+    try:
+        fruit.auth.pure_eddsa.verify(pkbytes, sigbytes, msgbytes)
+    except:
+        raise NotAuthorized('Bad signature')
 
 class Signer(object):
     @property
@@ -77,7 +52,7 @@ class LocalSigner(Signer):
         self.public_key = fruit.auth.pure_eddsa.create_verifying_key(secret_key)
 
     def _identity(self):
-        return Identity(self.public_key)
+        return self.public_key
 
     def _sign(self, msgbytes):
         return fruit.auth.pure_eddsa.signature(msgbytes, self.secret_key, self.public_key)
@@ -92,10 +67,10 @@ def authenticated_identity(header_string,
     if len(pieces) != 4 or pieces[0] != u'1':
         raise NotAuthorized('Bad authentication header format version')
     (_version, public_key_b64, timestamp_b64, signature_b64) = pieces
-    identity = Identity(_unb64(public_key_b64))
+    identity = _unb64(public_key_b64)
     timestamp = _unb64(timestamp_b64)
     signature = _unb64(signature_b64)
-    identity.verify(timestamp, signature)
+    verify(identity, timestamp, signature)
     now = fruit.auth.rfc3339.now()
     timestamp = fruit.auth.rfc3339.parse_datetime(timestamp.decode('us-ascii'))
     if timestamp < now - backwards:
@@ -107,7 +82,4 @@ def authenticated_identity(header_string,
 def make_authenticated_identity(identity, signer):
     timestamp = fruit.auth.rfc3339.now().isoformat().encode('us-ascii')
     signature = signer.sign(identity, timestamp)
-    return b';'.join((b'1',
-                      _b64(identity.public_key),
-                      _b64(timestamp),
-                      _b64(signature))).decode('us-ascii')
+    return b';'.join((b'1', _b64(identity), _b64(timestamp), _b64(signature))).decode('us-ascii')

@@ -93,7 +93,7 @@ class SshPrivateKey(object):
             self.comment = comment.decode('utf-8')
 
     def signer_for_identity(self, identity):
-        if identity.public_key == self.public_key:
+        if identity == self.public_key:
             return fruit.auth.LocalSigner(self.secret_key[:32])
         else:
             return None

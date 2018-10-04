@@ -83,7 +83,7 @@ class Agent(object):
 
     def signer_for_identity(self, identity):
         for (pk, comment) in self.list_identities():
-            if identity.public_key == pk:
+            if identity == pk:
                 return AgentSigner(self, identity)
         return None
 
@@ -96,4 +96,4 @@ class AgentSigner(fruit.auth.Signer):
         return self.__identity
 
     def _sign(self, msgbytes):
-        return self.agent.sign_data(self.identity.public_key, msgbytes)
+        return self.agent.sign_data(self.identity, msgbytes)
