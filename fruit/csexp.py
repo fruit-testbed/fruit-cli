@@ -49,7 +49,7 @@ def armor(sexp, compress=True):
     bs = encode(sexp)
     if compress: bs = b'gz' + zlib.compress(bs)
     bs = base64.b64encode(bs)
-    return bs.replace(b'=', b'')
+    return bs.rstrip(b'=')
 
 def unarmor(bs):
     bs = bs + b'=' * (-len(bs) % 4)  ## re-pad
