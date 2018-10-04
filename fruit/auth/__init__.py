@@ -1,11 +1,10 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 import base64
 import rfc3339
 import datetime
 import paramiko
-import nacl.signing, nacl.exceptions
+import ed25519
 import fruit.csexp as csexp
 
 ###########################################################################
@@ -54,24 +53,22 @@ class SignedItem(object):
 ###########################################################################
 ## Identity & Signer
 
-SSH_PUBLIC_KEY_BLOB_PREFIX = b'\x00\x00\x00\x0bssh-ed25519\x00\x00\x00 '
-SSH_SIGNATURE_BLOB_PREFIX = b'\x00\x00\x00\x0bssh-ed25519\x00\x00\x00@'
-
 class NotAuthorized(RuntimeError): pass
 
 class Identity(object):
     def __init__(self, public_key):
         _ensure_pk(public_key)
         self.public_key = public_key ## bytes
-        self.vk = nacl.signing.VerifyKey(public_key)
 
     def sexp(self):
         return self.public_key
 
     def unwrap(self, msgbytes, sigbytes):
         try:
-            self.vk.verify(msgbytes, sigbytes)
-        except nacl.exceptions.BadSignatureError:
+            ed25519.keys.VerifyingKey(self.public_key).verify(sigbytes, msgbytes)
+        except AssertionError:
+            return None
+        except ed25519.keys.BadSignatureError:
             return None
         else:
             return msgbytes
@@ -81,17 +78,13 @@ class Identity(object):
             raise NotAuthorized('Bad signature')
 
     def __eq__(self, other):
-        return isinstance(other, Identity) and self.vk == other.vk
+        return isinstance(other, Identity) and self.public_key == other.public_key
 
     def __ne__(self, other):
         return not (self == other)
 
-    def as_ssh_blob(self):
-        return SSH_PUBLIC_KEY_BLOB_PREFIX + self.public_key
-
     def as_base64(self):
-        s = base64.b64encode(self.vk.encode()).decode('us-ascii')
-        return s.replace('=', '')
+        return base64.b64encode(self.public_key).decode('us-ascii').rstrip('=')
 
     @staticmethod
     def from_base64(bs):
@@ -119,6 +112,19 @@ class Signer(object):
 
     def _sign(self, msgbytes):
         raise NotImplementedError('Subclass responsibility')
+
+class LocalSigner(Signer):
+    def __init__(self, secret_key=None):
+        if secret_key is None:
+            secret_key = os.urandom(32)
+        self.secret_key = secret_key
+        (self.public_key, _sk) = ed25519._ed25519.publickey(secret_key)
+
+    def _identity(self):
+        return Identity(self.public_key)
+
+    def _sign(self, msgbytes):
+        return ed25519.keys.SigningKey(self.secret_key + self.public_key).sign(msgbytes)
 
 ###########################################################################
 ## Requests and Contexts
@@ -190,108 +196,3 @@ class Request(SignedItem):
                        signature)
 
 _reg.record(b'request', Request)(Request.deserialize)
-
-###########################################################################
-## Variations on Signer: Local SSH private key; SSH-agent based
-
-class PasswordRequired(RuntimeError): pass
-
-class LocalSigner(Signer):
-    def __init__(self, secret_key=None):
-        if secret_key is None:
-            secret_key = nacl.signing.SigningKey.generate()._signing_key[:32]
-        self.sk = nacl.signing.SigningKey(secret_key)
-
-    def _identity(self):
-        return Identity(self.sk.verify_key.encode())
-
-    def _sign(self, msgbytes):
-        return self.sk.sign(msgbytes).signature
-
-    def secret_key_bytes(self):
-        return self.sk._signing_key[:32]
-
-    @staticmethod
-    def from_ssh_private_key(filename, password=None, identity=None):
-        try:
-            k = paramiko.Ed25519Key(filename=filename, password=password)
-        except paramiko.ssh_exception.PasswordRequiredException:
-            raise PasswordRequired()
-        except paramiko.ssh_exception.SSHException:
-            return None
-        else:
-            if identity is None or k.asbytes() == identity.as_ssh_blob():
-                return LocalSigner(k._signing_key._signing_key[:32])
-            return None
-
-class AgentSigner(Signer):
-    def __init__(self, agent, agent_key):
-        self.agent = agent
-        self.agent_key = agent_key
-        bs = agent_key.asbytes()
-        if not bs.startswith(SSH_PUBLIC_KEY_BLOB_PREFIX):
-            raise ValueError('Invalid public key')
-        self.public_key = agent_key.asbytes()[len(SSH_PUBLIC_KEY_BLOB_PREFIX):]
-
-    def _identity(self):
-        return Identity(self.public_key)
-
-    def _sign(self, msgbytes):
-        blob = self.agent_key.sign_ssh_data(msgbytes)
-        if not blob.startswith(SSH_SIGNATURE_BLOB_PREFIX):
-            raise ValueError('Invalid signature from ssh-agent')
-        return blob[len(SSH_SIGNATURE_BLOB_PREFIX):]
-
-    @staticmethod
-    def lookup(identity):
-        expected_blob = identity.as_ssh_blob()
-        agent = paramiko.Agent()
-        for k in agent.get_keys():
-            if k.asbytes() == expected_blob:
-                return AgentSigner(agent, k)
-        return None
-
-###########################################################################
-
-if __name__ == '__main__':
-    import pprint
-    import time
-
-    def get_signer_for(identity, key_filename=None, key_password=None):
-        k = AgentSigner.lookup(identity)
-        if k:
-            return k
-
-        try:
-            return LocalSigner.from_ssh_private_key(key_filename, None, identity=identity)
-        except PasswordRequired:
-            return LocalSigner.from_ssh_private_key(key_filename, key_password, identity=identity)
-
-    s = get_signer_for(Identity.from_base64('CN94hrKIFDCF/DherJg4Et1ZB8dbG3766mAlVCgvp9Q'),
-                       key_filename='testkey-ssob',
-                       key_password=b'ssob')
-    if not s:
-        raise Exception('No key available')
-
-    i = s.identity
-
-    sig = s.sign(i, b'hello')
-    print(i.unwrap(b'hello', sig))
-    print(i.unwrap(b'hello2', sig))
-    print(i.unwrap(b'hello', sig + b'x'))
-
-    req = Request(i, Context({'v': b'A'}))
-    req.sign_with(s)
-    print(pprint.pformat(req.sexp(), indent=2))
-    print(csexp.armor(req.sexp()))
-    print(len(csexp.encode(req.sexp())))
-    print(len(csexp.armor(req.sexp())))
-    print(len(csexp.armor(req.sexp(), compress=False)))
-
-    def judge():
-        print("Fresh" if req.is_fresh(backwards=datetime.timedelta(seconds=0),
-                                      forwards=datetime.timedelta(seconds=1)) else "Not fresh")
-
-    judge()
-    time.sleep(1)
-    judge()

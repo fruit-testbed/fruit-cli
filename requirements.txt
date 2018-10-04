@@ -2,5 +2,6 @@ requests
 PyYAML
 future
 tonyg-rfc3339
-paramiko
-pynacl
+ed25519
+py-bcrypt
+cryptography
