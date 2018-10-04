@@ -90,10 +90,7 @@ class Agent(object):
 class AgentSigner(fruit.auth.Signer):
     def __init__(self, agent, identity):
         self.agent = agent
-        self.__identity = identity
-
-    def _identity(self):
-        return self.__identity
+        self.identity = identity
 
     def _sign(self, msgbytes):
         return self.agent.sign_data(self.identity, msgbytes)
