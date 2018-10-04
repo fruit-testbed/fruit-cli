@@ -5,33 +5,22 @@ import fruit.auth
 import fruit.auth.ssh_key
 import fruit.auth.signify_key
 
-def _main():
-    if len(sys.argv) == 1:
-        token = sys.stdin.readline()
-        try:
-            print(fruit.auth._b64(fruit.auth.authenticated_identity(token)))
-        except:
-            sys.exit(1)
+if __name__ == '__main__':
+    filename = sys.argv[1]
+    if hasattr(sys.stdin, 'buffer'):
+        password = sys.stdin.buffer.readline().rstrip(b'\n')
     else:
-        filename = sys.argv[1]
-        if hasattr(sys.stdin, 'buffer'):
-            password = sys.stdin.buffer.readline().rstrip(b'\n')
-        else:
-            password = sys.stdin.readline().rstrip(b'\n')
+        password = sys.stdin.readline().rstrip(b'\n')
 
+    try:
+        sk = fruit.auth.ssh_key.SshPrivateKey(filename)
+        sk.unprotect(password)
+    except:
         try:
-            sk = fruit.auth.ssh_key.SshPrivateKey(filename)
+            sk = fruit.auth.signify_key.SignifyPrivateKey(filename)
             sk.unprotect(password)
         except:
-            try:
-                sk = fruit.auth.signify_key.SignifyPrivateKey(filename)
-                sk.unprotect(password)
-            except:
-                sys.exit(1)
-        identity = sk.public_key
-        print(fruit.auth.make_authenticated_identity(identity, sk.signer_for_identity(identity)))
-
+            sys.exit(1)
+    identity = sk.public_key
+    print(fruit.auth.make_authenticated_identity(identity, sk.signer_for_identity(identity)))
     sys.exit(0)
-
-if __name__ == '__main__':
-    _main()

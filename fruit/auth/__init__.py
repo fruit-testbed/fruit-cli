@@ -1,30 +1,9 @@
 # -*- coding: utf-8 -*-
 
+import time
 import base64
 import datetime
-
 import fruit.auth.pure_eddsa
-import fruit.auth.rfc3339
-
-def _b64(bs):
-    return base64.b64encode(bs).rstrip(b'=')
-
-def _unb64(bs):
-    if not isinstance(bs, bytes):
-        bs = bs.encode('us-ascii')
-    bs = bs + b'=' * (-len(bs) % 4)  ## re-pad
-    return base64.b64decode(bs)
-
-###########################################################################
-## Signer
-
-class NotAuthorized(RuntimeError): pass
-
-def verify(pkbytes, msgbytes, sigbytes):
-    try:
-        fruit.auth.pure_eddsa.verify(pkbytes, sigbytes, msgbytes)
-    except:
-        raise NotAuthorized('Bad signature')
 
 class Signer(object):
     def sign(self, on_behalf_of_identity, msgbytes):
@@ -47,32 +26,18 @@ class LocalSigner(Signer):
     def _sign(self, msgbytes):
         return fruit.auth.pure_eddsa.signature(msgbytes, self.secret_key, self.identity)
 
-###########################################################################
-## Authentication tokens and token freshness
+def _b64(bs):
+    return base64.b64encode(bs).rstrip(b'=')
 
-def authenticated_identity(header_string,
-                           backwards=datetime.timedelta(minutes=10),
-                           forwards=datetime.timedelta(minutes=5)):
-    pieces = header_string.strip().split(';')
-    if len(pieces) != 4 or pieces[0] != '1':
-        raise NotAuthorized('Bad authentication header format version')
-    (_version, public_key_b64, timestamp_b64, signature_b64) = pieces
-    try:
-        identity = _unb64(public_key_b64)
-        timestamp = _unb64(timestamp_b64)
-        signature = _unb64(signature_b64)
-    except TypeError:
-        raise NotAuthorized('Invalid base64')
-    verify(identity, timestamp, signature)
-    now = fruit.auth.rfc3339.now()
-    timestamp = fruit.auth.rfc3339.parse_datetime(timestamp.decode('us-ascii'))
-    if timestamp < now - backwards:
-        raise NotAuthorized('Expired')
-    if timestamp >= now + forwards:
-        raise NotAuthorized('Too far in future')
-    return identity
+class UTC(datetime.tzinfo):
+    ZERO = datetime.timedelta(seconds = 0)
+    def utcoffset(self, dt): return self.ZERO
+    def dst(self, dt): return self.ZERO
+    def tzname(self, dt): return 'Z'
+utc = UTC()
 
 def make_authenticated_identity(identity, signer):
-    timestamp = fruit.auth.rfc3339.now().isoformat().encode('us-ascii')
+    now = datetime.datetime(*time.gmtime(time.time())[:6] + (0, utc))
+    timestamp = now.isoformat().encode('us-ascii')
     signature = signer.sign(identity, timestamp)
     return b';'.join((b'1', _b64(identity), _b64(timestamp), _b64(signature))).decode('us-ascii')
