@@ -5,8 +5,8 @@
 
 import sys
 import base64
-import bcrypt
 import hashlib
+# import bcrypt -- only imports when actually needed
 
 import fruit.auth
 
@@ -53,6 +53,7 @@ class SignifyPrivateKey(object):
 
     def unprotect(self, password):
         if self.secret_key is None:
+            import bcrypt
             mask = bcrypt.kdf(password, self.salt, len(self.enckey), self.kdfrounds)
             result = bytes_xor(self.enckey, mask)
             if self.checksum != hashlib.sha512(result).digest()[:len(self.checksum)]:

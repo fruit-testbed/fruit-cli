@@ -2,12 +2,9 @@
 # Read SSH Ed25519 private keys
 
 import base64
-import bcrypt
-
 import fruit.auth
-
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
+# import bcrypt -- only imports when actually needed
+# import cryptography.hazmat.... -- only imports when actually needed
 
 from .bin_io import *
 
@@ -49,6 +46,9 @@ class SshPrivateKey(object):
             if self.ciphername == b'none' and self.kdfname == b'none':
                 blob = self.protected_privatekey
             elif self.ciphername == b'aes256-ctr' and self.kdfname == b'bcrypt':
+                import bcrypt
+                from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+                from cryptography.hazmat.backends import default_backend
                 (salt, kdfoptions) = parse_str(self.kdfoptions)
                 (rounds, kdfoptions) = parse_int(kdfoptions)
                 parse_end(kdfoptions)

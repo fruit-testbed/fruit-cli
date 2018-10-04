@@ -33,8 +33,7 @@ setup(
         "requests",
         "PyYAML",
         "future",
-        "tonyg-rfc3339",
-        "ed25519",
+        ## These two are needed only for SSH and openbsd signify key unwrapping:
         "py-bcrypt",
         "cryptography",
     ],

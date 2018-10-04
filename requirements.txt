@@ -1,7 +1,5 @@
 requests
 PyYAML
 future
-tonyg-rfc3339
-ed25519
 py-bcrypt
 cryptography
