@@ -4,12 +4,16 @@ import time
 import base64
 import datetime
 import fruit.auth.pure_eddsa
+import os
 
 class Signer(object):
     def sign(self, on_behalf_of_identity, msgbytes):
         if self.identity != on_behalf_of_identity:
             raise ValueError('Cannot sign with signer not matching identity')
         return self._sign(msgbytes)
+
+    def identity_str(self):
+        return _b64(self.identity)
 
     def _sign(self, msgbytes):
         raise NotImplementedError('Subclass responsibility')
@@ -27,7 +31,7 @@ class LocalSigner(Signer):
         return fruit.auth.pure_eddsa.signature(msgbytes, self.secret_key, self.identity)
 
 def _b64(bs):
-    return base64.urlsafe_b64encode(bs).rstrip(b'=')
+    return base64.urlsafe_b64encode(bs).rstrip(b'=').decode('us-ascii')
 
 class UTC(datetime.tzinfo):
     ZERO = datetime.timedelta(seconds = 0)
@@ -40,4 +44,4 @@ def make_authenticated_identity(identity, signer):
     now = datetime.datetime(*time.gmtime(time.time())[:6] + (0, utc))
     timestamp = now.isoformat().encode('us-ascii')
     signature = signer.sign(identity, timestamp)
-    return b';'.join((b'1', _b64(identity), _b64(timestamp), _b64(signature))).decode('us-ascii')
+    return ';'.join(('1', _b64(identity), _b64(timestamp), _b64(signature)))

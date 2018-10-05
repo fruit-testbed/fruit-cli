@@ -48,7 +48,7 @@ class Config:
         os.chmod(filename, stat.S_IRUSR | stat.S_IWUSR)
 
     def __enter__(self):
-        return fa.FruitApi(self.server, self.email, self.api_key)
+        return fa.FruitApi(server=self.server, email=self.email, api_key=self.api_key)
 
     def __exit__(self, type, exn, tb):
         if exn is not None:

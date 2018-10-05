@@ -7,6 +7,9 @@ import copy
 import re
 import requests
 import collections
+import time
+
+import fruit.auth
 
 DEFAULT_SERVER = 'https://fruit-testbed.org/api'
 
@@ -53,20 +56,18 @@ class FruitApiServerProblem(FruitApiErrorResponse): pass
 
 
 class FruitApi:
-    def __init__(self, server=None, email=None, api_key=None):
-        '''Construct with:
-           - both email and api_key to be able to act as a user;
-           - api_key alone to be able to act as a node/agent;
-           - neither, for registration and verification'''
+    def __init__(self, signer, server=None):
+        '''Construct with the identity you wish to present.'''
         self._server = server or DEFAULT_SERVER
-        self._email = email
-        self._api_key = api_key
+        self._signer = signer
+        self._token = None
+        self._token_timestamp = None
 
-    def _call(self, method, url, params={}, data=None, content_type=None, headers={}):
+    def _inner_call(self, method, url, params={}, data=None, content_type=None, headers={}):
         headers = copy.copy(headers)
         headers['Accept-Encoding'] = 'gzip'
-        if self._api_key is not None:
-            headers['X-API-Key'] = self._api_key
+        if self._token is not None:
+            headers['X-API-Key'] = self._token
         if content_type is not None:
             headers['Content-Type'] = content_type
         if isinstance(data, dict):
@@ -92,12 +93,27 @@ class FruitApi:
         if code >= 500: # pragma: no cover
             raise FruitApiServerProblem(resp)
 
-    @property
-    def email(self):
-        return self._email
+    def _call(self, *args, **kwargs):
+        self._freshen_token()
+        try:
+            return self._inner_call(*args, **kwargs)
+        except FruitApiClientProblem as exn:
+            if exn.response.status_code == 401:
+                # Unauthorized; freshen token and try again
+                self._freshen_token()
+                return self._inner_call(*args, **kwargs)
+            else:
+                raise
+
+    def _freshen_token(self):
+        if self._signer is not None:
+            now = time.time()
+            if self._token is None or now - self._token_timestamp >= 30:
+                self._token_timestamp = now
+                self._token = fruit.auth.make_authenticated_identity(self._signer.identity, self._signer)
 
     def _starting_params(self, group_name=None, node_id=None):
-        params = { 'email': self.email }
+        params = {}
         if group_name is not None: params['hostname'] = group_name
         if node_id is not None: params['id'] = node_id
         return params
@@ -105,21 +121,12 @@ class FruitApi:
     def register(self, email):
         return self._call('POST', '/user/%s' % (email,)).json()
 
-    def resend_api_key(self, email):
-        return self._call('GET', '/verify/%s/resend' % (email,)).json()
-
-    def delete_account(self):
-        self._call('DELETE', '/user/%s' % (self.email,))
+    def delete_account(self, email):
+        self._call('DELETE', '/user/%s' % (email,))
 
     def list_nodes(self, group_name=None):
         params = self._starting_params(group_name=group_name)
         return self._call('GET', '/node', params=params).json()
-
-    def node_config(self, node_id):
-        return self._call('GET', '/node/%s/config' % (node_id,)).json()
-
-    def post_monitoring_data(self, node_id, data):
-        self._call('POST', '/monitor/%s' % (node_id,), data=data)
 
     def get_monitoring_data(self, group_name=None, node_id=None):
         params = self._starting_params(group_name=group_name, node_id=node_id)
@@ -164,9 +171,6 @@ class FruitApi:
         params = self._starting_params(group_name=group_name, node_id=node_id)
         data = ssh_key_to_json(key)
         self._call('DELETE', '/user/ssh-key', params=params, data=data)
-
-    def authorized_keys(self, node_id):
-        return self._call('GET', '/node/%s/ssh_key' % (node_id,)).content
 
     def delete_node(self, node_id):
         params = self._starting_params()
