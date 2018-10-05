@@ -27,7 +27,7 @@ class LocalSigner(Signer):
         return fruit.auth.pure_eddsa.signature(msgbytes, self.secret_key, self.identity)
 
 def _b64(bs):
-    return base64.b64encode(bs).rstrip(b'=')
+    return base64.urlsafe_b64encode(bs).rstrip(b'=')
 
 class UTC(datetime.tzinfo):
     ZERO = datetime.timedelta(seconds = 0)
