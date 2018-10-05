@@ -42,7 +42,7 @@ def authenticated_identity(header_string,
 if __name__ == '__main__':
     token = sys.stdin.readline()
     try:
-        print(base64.b64encode(authenticated_identity(token)).rstrip(b'='))
+        print(base64.b64encode(authenticated_identity(token)).rstrip(b'=').decode('us-ascii'))
     except:
         sys.exit(1)
     sys.exit(0)
