@@ -33,13 +33,17 @@ else:
         return c
 
 class SignifyPrivateKey(object):
-    def __init__(self, filename):
-        with open(filename, 'rt') as f:
-            lines = f.readlines()
+    def __init__(self, filename=None, contents=None):
+        if contents is None:
+            with open(filename, 'rt') as f:
+                contents = f.read()
 
+        lines = contents.rstrip().split('\n')
+        print(repr(contents))
+        print(repr(lines))
         if not lines[0].startswith("untrusted comment:"): raise SyntaxError()
         lines = lines[1:]
-        blob = base64.b64decode(''.join(lines))
+        blob = base64.b64decode('\n'.join(lines))
 
         blob = parse_expected(b'EdBK', blob) ## ed25519, bcrypt-kdf
         (self.kdfrounds, blob) = parse_int(blob)

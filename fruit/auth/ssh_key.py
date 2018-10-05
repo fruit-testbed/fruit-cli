@@ -17,14 +17,16 @@ class SyntaxError(ValueError):
     pass
 
 class SshPrivateKey(object):
-    def __init__(self, filename):
-        with open(filename, 'rt') as f:
-            lines = f.readlines()
+    def __init__(self, filename=None, contents=None):
+        if contents is None:
+            with open(filename, 'rt') as f:
+                contents = f.read()
 
-        if lines[0] != "-----BEGIN OPENSSH PRIVATE KEY-----\n": raise SyntaxError()
-        if lines[-1] != "-----END OPENSSH PRIVATE KEY-----\n": raise SyntaxError()
+        lines = contents.rstrip().split('\n')
+        if lines[0] != "-----BEGIN OPENSSH PRIVATE KEY-----": raise SyntaxError()
+        if lines[-1] != "-----END OPENSSH PRIVATE KEY-----": raise SyntaxError()
         lines = lines[1:-1]
-        blob = base64.b64decode(''.join(lines))
+        blob = base64.b64decode('\n'.join(lines))
 
         blob = parse_expected(b'openssh-key-v1\0', blob)
         (self.ciphername, blob) = parse_str(blob)
