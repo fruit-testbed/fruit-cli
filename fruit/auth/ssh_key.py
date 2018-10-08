@@ -8,14 +8,6 @@ import fruit.auth
 
 from .bin_io import *
 
-class BadPassword(ValueError):
-    '''Invalid passphrase given when unprotecting a key'''
-    pass
-
-class SyntaxError(ValueError):
-    '''A syntax error parsing an SSH data structure (e.g. key file, network message etc)'''
-    pass
-
 class SshPrivateKey(object):
     def __init__(self, filename=None, contents=None):
         if contents is None:
@@ -33,7 +25,8 @@ class SshPrivateKey(object):
         (self.kdfname, blob) = parse_str(blob)
         (self.kdfoptions, blob) = parse_str(blob)
         (nkeys, blob) = parse_int(blob)
-        if nkeys != 1: raise SyntaxError()
+        if nkeys != 1: raise SyntaxError() # pragma: no cover
+        # ^ (all private keys in the wild have nkeys==1)
         (publickey, blob) = parse_str(blob)
         self.public_key = parse_expected(SSH_PUBLIC_KEY_BLOB_PREFIX, publickey)
         (self.protected_privatekey, blob) = parse_str(blob)
@@ -48,6 +41,7 @@ class SshPrivateKey(object):
             if self.ciphername == b'none' and self.kdfname == b'none':
                 blob = self.protected_privatekey
             elif self.ciphername == b'aes256-ctr' and self.kdfname == b'bcrypt':
+                if not password: raise BadPassword()
                 import bcrypt
                 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
                 from cryptography.hazmat.backends import default_backend

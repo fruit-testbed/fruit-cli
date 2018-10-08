@@ -21,11 +21,15 @@ class Agent(object):
         if socket_path is None:
             socket_path = os.environ.get('SSH_AUTH_SOCK', None)
 
+        self.socket_path = socket_path
+
         if socket_path:
             try:
                 self._socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 self._socket.connect(socket_path)
             except socket.error:
+                if self._socket:
+                    self._socket.close()
                 self._socket = None
         else:
             self._socket = None
@@ -57,7 +61,7 @@ class Agent(object):
         self._send(format_byte(SSH_AGENTC_REQUEST_IDENTITIES))
         blob = self._recv()
         (replytype, blob) = parse_byte(blob)
-        if replytype != SSH_AGENT_IDENTITIES_ANSWER: raise ProtocolError()
+        if replytype != SSH_AGENT_IDENTITIES_ANSWER: raise ProtocolError() # pragma: no cover
         (nkeys, blob) = parse_int(blob)
         result = []
         for i in range(nkeys):
@@ -75,7 +79,7 @@ class Agent(object):
                    format_int(0))
         blob = self._recv()
         (replytype, blob) = parse_byte(blob)
-        if replytype != SSH_AGENT_SIGN_RESPONSE: raise ProtocolError()
+        if replytype != SSH_AGENT_SIGN_RESPONSE: raise ProtocolError() # pragma: no cover
         (sig, blob) = parse_str(blob)
         parse_end(blob)
         sig = parse_expected(SSH_SIGNATURE_BLOB_PREFIX, sig)

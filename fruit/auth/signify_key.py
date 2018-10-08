@@ -39,8 +39,6 @@ class SignifyPrivateKey(object):
                 contents = f.read()
 
         lines = contents.rstrip().split('\n')
-        print(repr(contents))
-        print(repr(lines))
         if not lines[0].startswith("untrusted comment:"): raise SyntaxError()
         lines = lines[1:]
         blob = base64.b64decode('\n'.join(lines))
@@ -54,6 +52,9 @@ class SignifyPrivateKey(object):
         parse_end(blob)
         self.public_key = None
         self.secret_key = None
+
+    def password_needed(self):
+        return True
 
     def unprotect(self, password):
         if self.secret_key is None:
