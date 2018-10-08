@@ -30,10 +30,85 @@ To install from source code:
 ```shell
 git clone https://github.com/fruit-testbed/fruit-cli
 cd fruit-cli
-pip install requests PyYAML
+pip install -r requirements.txt
 python setup.py install
 ```
 
+## Registering an account
+
+The FRμIT management service uses
+[the Ed25519 signature scheme](https://ed25519.cr.yp.to/) to
+authenticate users and nodes with the management server.
+
+To register an account, you will need an Ed25519 key.
+
+### Step 1: Generate a key
+
+You can use a new or existing Ed25519
+[SSH key](https://wiki.archlinux.org/index.php/SSH_keys#Ed25519) or a
+new or existing Ed25519 [OpenBSD signify][signify] key.
+
+  [signify]: https://man.openbsd.org/signify
+
+To generate a fresh SSH key:
+
+    ssh-keygen -t ed25519 -f ssh-key-for-fruit
+
+This will create files `ssh-key-for-fruit` and `ssh-key-for-fruit.pub`
+in the current directory, holding your new secret key and its
+corresponding public key, respectively. Supply a different path to the
+`-f` option to alter this behaviour.
+
+Alternatively, to generate a fresh signify key:
+
+    signify -G -s signify-key-for-fruit.sec -p signify-key-for-fruit.pub
+
+This will create files `signify-key-for-fruit.sec` and
+`signify-key-for-fruit.pub` in the current directory, holding your new
+secret key and its corresponding public key, respectively. Supply
+different paths to the `-s` and `-p` options to alter this behaviour.
+(The `signify` command-line tool may be called `signify-openbsd` on
+systems such as Debian linux.)
+
+### Step 1b (optional): Add your key to ssh-agent
+
+If you chose to use an SSH key to authenticate with FRμIT, you may
+choose to add the key to your
+[`ssh-agent`](https://en.wikipedia.org/wiki/Ssh-agent).
+
+This will allow you to use `fruit-cli` without having to enter your
+passphrase for each command.
+
+To do this, ensure your `SSH_AUTH_SOCK` environment variable is set
+correctly per the
+[`ssh-agent` documentation](https://man.openbsd.org/ssh-agent), and
+then run
+
+    ssh-add ssh-key-for-fruit
+
+replacing the `ssh-key-for-fruit` filename with the correct path to
+your SSH secret key file if necessary.
+
+### Step 2: Register your account
+
+Now that you have an Ed25519 key available, you may register your
+account with the server.
+
+Use the `fruit-cli account register` command, supplying the path to
+your SSH or signify secret key using the `-f` option, and also
+supplying an email address that you have access to.
+
+### Step 3: Click the verification link
+
+You will receive email at the address you specified in the previous
+step. Click the link it contains. After you do so, your account is
+ready to use.
+
+Running
+
+    fruit-cli node list
+
+should successfully produce the empty list as output.
 
 ## Config
 
@@ -42,21 +117,72 @@ The default path for the `fruit-cli` configuration file is
 access the FRμIT management API. It has two mandatory fields:
 
 - `email`, the user's email address (e.g. `foo@bar.com`).
-- `api-key`, a 64-character string assigned to each user. You have to
-  register an account (see
-  [`fruit-cli account register` below](#account-commands)) to get this
-  key.
+- `public-key`, a base64-encoded Ed25519 public key identifying the user.
 
-There is one optional field:
+It also has one of two possible fields specifying the secret key
+corresponding to the user's public key, depending on the way the
+account was initially configured:
+
+- `secret-key` may contain either
+    - an unprotected, base64-encoded, raw Ed25519 secret key; or
+    - the contents of an SSH private key file; or
+    - the contents of an
+      [OpenBSD signify][signify]
+      secret key file
+- `secret-key-file` may contain a path to
+    - an SSH or private key file containing an Ed25519 key
+    - an OpenBSD signify secret key file
+
+If an SSH private key is used and `SSH_AUTH_SOCK` is correctly set,
+`fruit-cli` will use the SSH agent protocol to avoid needing to access
+the decrypted SSH private key directly.
+
+Finally, there is one optional field:
 
 - `server`, the management server's endpoint (default: `https://fruit-testbed.org/api`).
 
 Example:
 
-```yaml
-email: foo@bar.com
-api-key: 0123456789012345678901234567890123456789012345678901234567890123
-```
+0. With SSH private key embedded in `.fruit-cli`:
+
+   ```yaml
+   email: foo@bar.com
+   public-key: Kr7zLRszjeJIFugU4emg3cRRkqwThzdWtdFgTNfWkwc=
+   secret-key: |
+     -----BEGIN OPENSSH PRIVATE KEY-----
+     b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+     QyNTUxOQAAACAqvvMtGzON4kgW6BTh6aDdxFGSrBOHN1a10WBM19aTBwAAAJiF9PaZhfT2
+     mQAAAAtzc2gtZWQyNTUxOQAAACAqvvMtGzON4kgW6BTh6aDdxFGSrBOHN1a10WBM19aTBw
+     AAAEDXtEIQ3vT45HKCYAgdQsldEZCgd3LsKlGoaaWzAxLQCyq+8y0bM43iSBboFOHpoN3E
+     UZKsE4c3VrXRYEzX1pMHAAAADnRlc3RrZXktbm9wYXNzAQIDBAUGBw==
+     -----END OPENSSH PRIVATE KEY-----
+   ```
+
+0. With SSH private key in the user's `~/.ssh/id_ed25519` file:
+
+   ```yaml
+   email: foo@bar.com
+   public-key: Kr7zLRszjeJIFugU4emg3cRRkqwThzdWtdFgTNfWkwc=
+   secret-key-file: ~/.ssh/id_ed25519
+   ```
+
+0. With signify secret key embedded in `.fruit-cli`:
+
+   ```yaml
+   email: foo@bar.com
+   public-key: Q0VY79+tjrd7liUgd+gNPIwgKjEj9htLoTCrKK2ticU=
+   secret-key: |
+     untrusted comment: signify secret key
+     RWRCSwAAACr9As6kyntYZy64Ox6oyZxobHMbQBnRtZ+LuLux29x42u7NpUwzrJDA6Gq0PQOd6MaKPEzL0+RZWjao1EIXn6vKk1QoaMythTS6X2W0ZU21q4D6x/4d60JfbQr5VCU1GaU=
+   ```
+
+0. With signify secret key in `~/.signify.sec`:
+
+   ```yaml
+   email: foo@bar.com
+   public-key: Q0VY79+tjrd7liUgd+gNPIwgKjEj9htLoTCrKK2ticU=
+   secret-key-file: ~/.signify.sec
+   ```
 
 ## Examples
 
@@ -165,13 +291,12 @@ be selected.
 ### Account commands
 
 ```
-usage: fruit-cli account [-h] {help,register,resend-api-key,config,delete} ...
+usage: fruit-cli account [-h] {help,register,config,delete} ...
 
 positional arguments:
-  {help,register,resend-api-key,config,delete}
+  {help,register,config,delete}
     help                Print help
     register            Register a new account
-    resend-api-key      Request an email containing the API Key
     config              Print current configuration settings
     delete              Delete account
 
