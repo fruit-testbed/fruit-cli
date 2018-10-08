@@ -12,17 +12,27 @@ import json
 import re
 import yaml
 import io
+import getpass
 
 import fruit.api as fa
+import fruit.auth as auth
+import fruit.auth.ssh_agent as ssh_agent
+import fruit.auth.ssh_key as ssh_key
+import fruit.auth.signify_key as signify_key
 
 FRUIT_CLI_CONFIG_VAR = 'FRUIT_CLI_CONFIG'
 FRUIT_API_SERVER_VAR = 'FRUIT_API_SERVER'
 
 
+def _get_passphrase(source):
+    return getpass.getpass('Enter passphrase to unlock %s: ' % (source,))
+
+
 class Config:
     def __init__(self):
         self.server = os.environ.get(FRUIT_API_SERVER_VAR, fa.DEFAULT_SERVER)
-        self.api_key = None
+        self.public_key = None
+        self.secret_key = None
         self.email = None
 
     def load(self, filename):
@@ -31,15 +41,26 @@ class Config:
                 blob = yaml.safe_load(f) or {}
         else:
             blob = {}
+
         if 'server' in blob: self.server = blob['server']
-        self.api_key = blob.get('api-key', None)
+
         self.email = blob.get('email', None)
+
+        self.public_key = blob.get('public-key', None)
+        if self.public_key is not None:
+            self.public_key = auth._unb64(self.public_key)
+
+        self.secret_key_blob = blob.get('secret-key', None)
+        self.secret_key_path = blob.get('secret-key-file', None)
+        self._signer = None
 
     def to_json(self):
         blob = {}
         if self.server != fa.DEFAULT_SERVER: blob['server'] = self.server
-        if self.api_key: blob['api-key'] = self.api_key
         if self.email: blob['email'] = self.email
+        if self.public_key: blob['public-key'] = auth._b64(self.public_key)
+        if self.secret_key_blob: blob['secret-key'] = self.secret_key_blob
+        if self.secret_key_path: blob['secret-key-file'] = self.secret_key_path
         return blob
 
     def dump(self, filename):
@@ -47,8 +68,61 @@ class Config:
             yaml.safe_dump(self.to_json(), stream=f, default_flow_style=False)
         os.chmod(filename, stat.S_IRUSR | stat.S_IWUSR)
 
+    def __signer(self):
+        blob = self.secret_key_blob
+        source = 'secret key'
+        if blob is None:
+            with open(os.path.expanduser(self.secret_key_path), 'rb') as fh:
+                blob = fh.read()
+                source = 'secret key from file %r' % (self.secret_key_path,)
+
+        agent = ssh_agent.Agent()
+        s = agent.signer_for_identity(self.public_key)
+        if s is not None:
+            return s
+
+        try:
+            return auth.LocalSigner(auth._unb64(blob))
+        except:
+            pass
+
+        sk = None
+        try:
+            sk = ssh_key.SshPrivateKey(contents=blob)
+        except ssh_key.SyntaxError:
+            try:
+                sk = signify_key.SignifyPrivateKey(contents=blob)
+            except signify_key.SyntaxError:
+                pass
+
+        if sk is None:
+            raise fa.FruitApiError('Cannot open %s' % (source,))
+
+        try:
+            if sk.password_needed():
+                sk.unprotect(_get_passphrase(source))
+            else:
+                sk.unprotect(None)
+        except auth.BadPassword:
+            raise fa.FruitApiError('Bad passphrase when opening %s' % (source,))
+
+        return sk.signer_for_identity(sk.public_key)
+
+    def signer(self):
+        if self._signer is None:
+            self._signer = self.__signer()
+            if self.public_key is None:
+                self.public_key = self._signer.identity
+            elif self.public_key != self._signer.identity:
+                raise fa.FruitApiError('Mismatch between public key and secret key')
+        return self._signer
+
     def __enter__(self):
-        return fa.FruitApi(server=self.server, email=self.email, api_key=self.api_key)
+        try:
+            return fa.FruitApi(signer=self.signer(), server=self.server)
+        except fa.FruitApiError as exn:
+            self.print_pretty_summary(sys.stderr, exn)
+            sys.exit(1)
 
     def __exit__(self, type, exn, tb):
         if exn is not None:
@@ -87,37 +161,27 @@ def config_filename():
 
 
 def register(config, args):
-    with config as api:
-        api.register(args.email)
-
-        print('A verification email has been sent to %s.' % (args.email,))
-        print('Please check your mailbox and follow the instructions to get the API-Key.')
-        print()
-
-        while True:
-            try:
-                api_key = input("Please enter your API-Key: ")
-            except EOFError:
-                sys.exit(1)
-
-            api_key = api_key.strip()
-            if not api_key:
-                continue
-
+    try:
+        if config.email is None:
             config.email = args.email
-            config.api_key = api_key
-            config.dump(args.config_filename)
-            break
-
-        print()
-        print('Your API-Key has been saved to your config file:', args.config_filename)
-        print('You can now manage your nodes.')
-
-
-def resend_api_key(config, args):
+        if config.email != args.email:
+            raise fa.FruitApiError('Configuration file already contains a different email address')
+        config.secret_key_blob = args.secret_key or None
+        path = args.secret_key_file
+        if path:
+            if path[:1] != '~':
+                path = os.path.abspath(path)
+            config.secret_key_path = path
+        else:
+            config.secret_key_path = None
+    except fa.FruitApiError as exn:
+        config.print_pretty_summary(sys.stderr, exn)
+        sys.exit(1)
     with config as api:
-        api.resend_api_key(args.email)
-        print('An email with API key has been sent your mailbox:', args.email)
+        api.register(config.email)
+        print('A verification email has been sent to %s.' % (args.email,))
+        print('Please check your mailbox and follow the instructions.')
+        config.dump(args.config_filename)
 
 
 def _pp_yaml(args, blob):
@@ -144,19 +208,24 @@ def delete_account(config, args):
     print()
     print('THIS IS PERMANENT. THERE IS NO WAY TO UNDO THIS.')
     print()
-    entered_email = input("Type your account's email address to confirm deletion: ")
+    entered_email = raw_input("Type your account's email address to confirm deletion: ")
     if entered_email != config.email:
         print("Email address does not match.")
         sys.exit(1)
 
     print()
-    if input("Last chance! Enter 'YES' to delete your account: ") != 'YES':
+    if raw_input("Last chance! Enter 'YES' to delete your account: ") != 'YES':
         print("Cancelling.")
         sys.exit(1)
     with config as api:
-        api.delete_account()
+        api.delete_account(config.email)
         print()
         print("Account deleted.")
+        config.email = None
+        config.public_key = None
+        config.secret_key_blob = None
+        config.secret_key_path = None
+        config.dump(args.config_filename)
 
 
 def list_nodes(config, args):
@@ -353,15 +422,18 @@ def main(argv=sys.argv):
     p = ssp.add_parser('register', help='Register a new account',
                        description='''Interactive registration of a new
                        account. You must have access to the email
-                       address supplied.''')
+                       address supplied. The secret key you specify
+                       will be used to authenticate you to the
+                       management server.''')
+    g = p.add_argument_group('Specifying a secret key to authenticate with')
+    g = g.add_mutually_exclusive_group(required=True)
+    g.add_argument('--secret-key', metavar='SECRETKEY', type=str,
+                   help='Specify a literal SSH, signify, or base64-encoded Ed25519 secret key')
+    g.add_argument('--secret-key-file', '-f', metavar='SECRETKEYPATH', type=str,
+                   help='Specify a path to a SSH, signify, or base64-encoded Ed25519 secret key')
     p.add_argument('email', type=str,
                    help='Email address of the account to register')
     p.set_defaults(handler=register)
-
-    p = ssp.add_parser('resend-api-key', help='Request an email containing the API Key')
-    p.add_argument('email', type=str,
-                   help='Email address of the account')
-    p.set_defaults(handler=resend_api_key)
 
     p = ssp.add_parser('config', help='Print current configuration settings')
     p.set_defaults(handler=print_config)
