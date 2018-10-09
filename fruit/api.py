@@ -63,7 +63,12 @@ class FruitApi:
         self._token = None
         self._token_timestamp = None
 
-    def _inner_call(self, method, url, params={}, data=None, content_type=None, headers={}):
+    def _inner_call(self, method, url,
+                    params={},
+                    data=None,
+                    content_type=None,
+                    headers={},
+                    redirect_ok=False):
         headers = copy.copy(headers)
         headers['Accept-Encoding'] = 'gzip'
         if self._token is not None:
@@ -79,15 +84,19 @@ class FruitApi:
                                     self._server + url,
                                     params=params,
                                     data=data,
-                                    headers=headers)
+                                    headers=headers,
+                                    allow_redirects=False)
         except requests.exceptions.RequestException as exn:
             raise FruitApiRequestProblem(exn)
         code = resp.status_code
         if code >= 200 and code <= 299:
             return resp
         if code >= 300 and code <= 399: # pragma: no cover
-            # We do not yet handle redirections, since the API does not require them.
-            raise FruitApiServerProblem(resp)
+            if redirect_ok:
+                return resp
+            else:
+                # We do not yet follow redirections, since the API does not require them.
+                raise FruitApiServerProblem(resp)
         if code >= 400 and code <= 499:
             raise FruitApiClientProblem(resp)
         if code >= 500: # pragma: no cover
