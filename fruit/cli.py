@@ -72,7 +72,7 @@ class Config:
         blob = self.secret_key_blob
         source = 'secret key'
         if blob is None:
-            with open(os.path.expanduser(self.secret_key_path), 'rb') as fh:
+            with open(os.path.expanduser(self.secret_key_path), 'rt') as fh:
                 blob = fh.read()
                 source = 'secret key from file %r' % (self.secret_key_path,)
 
