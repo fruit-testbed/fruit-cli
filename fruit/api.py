@@ -163,9 +163,9 @@ class FruitApi:
         params = self._starting_params(group_name=group_name, node_id=node_id)
         result = self._call('GET', '/user/ssh-key', params=params).json()
         if decode_json:
-            users = result.get('users', {})
-            for (email, keys) in users.items():
-                users[email] = list(map(json_to_ssh_key, keys))
+            user_keys = result.get('user', [])
+            for i in range(len(user_keys)):
+                user_keys[i] = json_to_ssh_key(user_keys[i])
             nodes = result.get('nodes', {})
             for (node_id, keys) in nodes.items():
                 nodes[node_id] = list(map(json_to_ssh_key, keys))
