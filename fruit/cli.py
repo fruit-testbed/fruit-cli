@@ -228,9 +228,26 @@ def delete_account(config, args):
         config.dump(args.config_filename)
 
 
+def _parse_filter(args):
+    if args.filter is None:
+        return None
+    raw_filter = args.filter
+    for triple in raw_filter:
+        (_jsonpath, operator, _expectedvalue) = triple
+        if operator not in ['=', '<', '>', 'glob']:
+            raise fa.FruitApiError('Invalid filter clause operator: %r' % (operator,))
+    def decode_json(p,v):
+        try:
+            return json.loads(v)
+        except json.JSONDecodeError:
+            raise fa.FruitApiError(
+                'Invalid filter clause JSON comparison value %r for path %r' % (v, p))
+    return [(p,o,v if o == 'glob' else decode_json(p,v)) for (p,o,v) in raw_filter]
+
+
 def list_nodes(config, args):
     with config as api:
-        _pp_yaml(args, api.list_nodes(group_name=args.group))
+        _pp_yaml(args, api.list_nodes(filter=_parse_filter(args)))
 
 
 def monitor(config, args):
@@ -238,7 +255,7 @@ def monitor(config, args):
     ## extracting portions of the input. Instead, users could try
     ## tools like `jq` https://stedolan.github.io/jq/.
     with config as api:
-        _pp_yaml(args, api.get_monitoring_data(group_name=args.group, node_id=args.node))
+        _pp_yaml(args, api.get_monitoring_data(filter=_parse_filter(args), node_id=args.node))
 
 
 def reset_node(config, args):
@@ -256,16 +273,16 @@ def run_container(config, args):
                                 kernel_module=args.kernel_module or [],
                                 device_tree=args.device_tree or [],
                                 device=args.device or [])
-        _pp_yaml(args, api.run_container(spec, group_name=args.group, node_id=args.node))
+        _pp_yaml(args, api.run_container(spec, filter=_parse_filter(args), node_id=args.node))
 
 
 def list_container(config, args):
     with config as api:
-        node_map = api.list_containers(group_name=args.group, node_id=args.node)
+        node_map = api.list_containers(filter=_parse_filter(args), node_id=args.node)
 
         # Modify `node_map` to add information on which nodes are
         # successfully running each container.
-        all_data = api.get_monitoring_data(group_name=args.group, node_id=args.node)
+        all_data = api.get_monitoring_data(filter=_parse_filter(args), node_id=args.node)
         for (node_id, data) in all_data.items():
             if node_id in node_map:
                 stub = node_map[node_id]
@@ -292,14 +309,14 @@ def list_container(config, args):
 
 def rm_container(config, args):
     with config as api:
-        _pp_yaml(args, api.delete_container(args.name, group_name=args.group, node_id=args.node))
+        _pp_yaml(args, api.delete_container(args.name, filter=_parse_filter(args), node_id=args.node))
 
 
 def list_ssh_keys(config, args):
     with config as api:
         ## TODO: split out retrieval of user keys from node keys entirely
         if args.ssh:
-            keys = api.list_ssh_keys(group_name=args.group, node_id=args.node)
+            keys = api.list_ssh_keys(filter=_parse_filter(args), node_id=args.node)
             for (category, keymap) in keys.items():
                 print('#' + '-' * 71)
                 print('# %s' % (category,))
@@ -308,7 +325,7 @@ def list_ssh_keys(config, args):
                     for k in keys:
                         print(fa.format_ssh_key(k))
         else:
-            keys = api.list_ssh_keys(decode_json=False, group_name=args.group, node_id=args.node)
+            keys = api.list_ssh_keys(decode_json=False, filter=_parse_filter(args), node_id=args.node)
             _pp_yaml(args, keys)
 
 
@@ -331,7 +348,7 @@ def add_ssh_key(config, args):
         keys = _collect_ssh_keys(args)
         for key in keys:
             ## TODO: make add_ssh_key actually send an array of keys to process!
-            api.add_ssh_key(key, group_name=args.group, node_id=args.node)
+            api.add_ssh_key(key, filter=_parse_filter(args), node_id=args.node)
 
 
 def delete_ssh_key(config, args):
@@ -339,7 +356,7 @@ def delete_ssh_key(config, args):
         keys = _collect_ssh_keys(args)
         for key in keys:
             ## TODO: make delete_ssh_key actually send an array of keys to process!
-            api.delete_ssh_key(key, group_name=args.group, node_id=args.node)
+            api.delete_ssh_key(key, filter=_parse_filter(args), node_id=args.node)
 
 
 def authorized_keys(config, args):
@@ -358,16 +375,16 @@ def _add_help_to(p, sp):
     h = sp.add_parser('help', help='Print help')
     h.set_defaults(handler=lambda config, args: p.print_help())
 
-def _add_group_argument(p):
-    p.add_argument('--group', metavar='NODEGROUP', type=str, default=None,
-                   help='Restrict operation to the named node group')
+def _add_filter_argument(p):
+    p.add_argument('--filter', metavar='STR', nargs=3, action='append',
+                   help='Restrict operation by filtering nodes')
 
 
-def _add_node_group_filter_arguments(p):
+def _add_node_filter_arguments(p):
     g = p.add_argument_group('Node selection')
-    _add_group_argument(g)
+    _add_filter_argument(g)
     g.add_argument('--node', metavar='NODEID', type=str, default=None,
-                   help='Restrict operation to the named node')
+                   help='Restrict operation to the given node identifier key')
     return g
 
 
@@ -405,9 +422,13 @@ def main(argv=sys.argv):
 
     sp = parser.add_subparsers()
 
-    GROUP_HELP = ''' If --group is supplied, includes only nodes in the named group.'''
-    NODE_HELP = ''' If --node is supplied, includes only the named node (or nothing at
-    all, if that node is not in the selected --group).'''
+    FILTER_HELP = ''' The --filter PATH OP VALUE command may be supplied multiple times.
+    Each PATH is a JSON-pointer path. OP may be any of "=", "<", ">"
+    or "glob". VALUE must be a string representation of a JSON
+    value.'''
+    NODE_HELP = ''' If --node is supplied, includes only the node with the given
+    identifier key (or nothing at all, if that node's attributes do
+    not match selected `--filter`s).'''
 
     _add_help_to(parser, sp)
 
@@ -453,14 +474,14 @@ def main(argv=sys.argv):
     _add_help_to(p, ssp)
 
     p = ssp.add_parser('list', help='List (all or some) nodes',
-                      description='''Prints a YAML summary of accessible nodes to stdout.''' + GROUP_HELP)
-    _add_group_argument(p)
+                      description='''Prints a YAML summary of accessible nodes to stdout.''' + FILTER_HELP)
+    _add_filter_argument(p)
     p.set_defaults(handler=list_nodes)
 
     p = ssp.add_parser('monitor', help='Retrieve monitoring data from nodes',
                        description='''Prints a YAML summary of monitoring data from accessible nodes to
-                       stdout.''' + GROUP_HELP + NODE_HELP)
-    _add_node_group_filter_arguments(p)
+                       stdout.''' + FILTER_HELP + NODE_HELP)
+    _add_node_filter_arguments(p)
     p.set_defaults(handler=monitor)
 
     p = ssp.add_parser('reset', help='Deregister and reset a specific node',
@@ -471,7 +492,7 @@ def main(argv=sys.argv):
     #------------------------------------------------------------------------
 
     p = sp.add_parser('container', help='Container management')
-    _add_node_group_filter_arguments(p)
+    _add_node_filter_arguments(p)
     container_p = p
     p.set_defaults(handler=lambda config, args: container_p.print_help())
     ssp = p.add_subparsers()
@@ -514,19 +535,19 @@ def main(argv=sys.argv):
     _add_help_to(p, ssp)
 
     p = ssp.add_parser('add', help='Grant SSH key access to nodes')
-    _add_node_group_filter_arguments(p)
+    _add_node_filter_arguments(p)
     _add_ssh_key_arguments(p)
     p.set_defaults(handler=add_ssh_key)
 
     p = ssp.add_parser('list', help='List SSH keys with access to nodes')
-    _add_node_group_filter_arguments(p)
+    _add_node_filter_arguments(p)
     g = p.add_mutually_exclusive_group()
     g.add_argument('--ssh', action='store_true',
                    help='Produce output in SSH public-key/authorized_keys format')
     p.set_defaults(handler=list_ssh_keys)
 
     p = ssp.add_parser('remove', help='Delete SSH keys having access to nodes')
-    _add_node_group_filter_arguments(p)
+    _add_node_filter_arguments(p)
     g = _add_ssh_key_arguments(p)
     p.set_defaults(handler=delete_ssh_key)
 

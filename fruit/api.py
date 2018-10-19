@@ -121,9 +121,9 @@ class FruitApi:
                 self._token_timestamp = now
                 self._token = fruit.auth.make_authenticated_identity(self._signer.identity, self._signer)
 
-    def _starting_params(self, group_name=None, node_id=None):
+    def _starting_params(self, filter=None, node_id=None):
         params = {}
-        if group_name is not None: params['hostname'] = group_name
+        if filter is not None: params['filter'] = json.dumps(filter)
         if node_id is not None: params['id'] = node_id
         return params
 
@@ -133,34 +133,34 @@ class FruitApi:
     def delete_account(self, email):
         self._call('DELETE', '/user/%s' % (email,))
 
-    def list_nodes(self, group_name=None):
-        params = self._starting_params(group_name=group_name)
+    def list_nodes(self, filter=None):
+        params = self._starting_params(filter=filter)
         return self._call('GET', '/node', params=params).json()
 
-    def get_monitoring_data(self, group_name=None, node_id=None):
-        params = self._starting_params(group_name=group_name, node_id=node_id)
+    def get_monitoring_data(self, filter=None, node_id=None):
+        params = self._starting_params(filter=filter, node_id=node_id)
         return self._call('GET', '/monitor', params).json()
 
-    def run_container(self, spec, group_name=None, node_id=None):
-        params = self._starting_params(group_name=group_name, node_id=node_id)
+    def run_container(self, spec, filter=None, node_id=None):
+        params = self._starting_params(filter=filter, node_id=node_id)
         data = spec.to_json()
         return self._call('PUT', '/container', params=params, data=data).json()
 
-    def list_containers(self, group_name=None, node_id=None):
-        params = self._starting_params(group_name=group_name, node_id=node_id)
+    def list_containers(self, filter=None, node_id=None):
+        params = self._starting_params(filter=filter, node_id=node_id)
         return self._call('GET', '/container', params=params).json()
 
-    def delete_container(self, container_name, group_name=None, node_id=None):
+    def delete_container(self, container_name, filter=None, node_id=None):
         if not isinstance(container_name, str):
             raise TypeError('delete_container: container_name must be string: got %r' %
                             (container_name,))
-        params = self._starting_params(group_name=group_name, node_id=node_id)
+        params = self._starting_params(filter=filter, node_id=node_id)
         params['name'] = container_name
         return self._call('DELETE', '/container', params=params).json()
 
-    def list_ssh_keys(self, group_name=None, node_id=None, decode_json=True):
+    def list_ssh_keys(self, filter=None, node_id=None, decode_json=True):
         ## TODO: split out retrieval of user keys from node keys entirely
-        params = self._starting_params(group_name=group_name, node_id=node_id)
+        params = self._starting_params(filter=filter, node_id=node_id)
         result = self._call('GET', '/user/ssh-key', params=params).json()
         if decode_json:
             user_keys = result.get('user', [])
@@ -171,13 +171,13 @@ class FruitApi:
                 nodes[node_id] = list(map(json_to_ssh_key, keys))
         return result
 
-    def add_ssh_key(self, key, group_name=None, node_id=None):
-        params = self._starting_params(group_name=group_name, node_id=node_id)
+    def add_ssh_key(self, key, filter=None, node_id=None):
+        params = self._starting_params(filter=filter, node_id=node_id)
         data = ssh_key_to_json(key)
         self._call('PUT', '/user/ssh-key', params=params, data=data)
 
-    def delete_ssh_key(self, key, group_name=None, node_id=None):
-        params = self._starting_params(group_name=group_name, node_id=node_id)
+    def delete_ssh_key(self, key, filter=None, node_id=None):
+        params = self._starting_params(filter=filter, node_id=node_id)
         data = ssh_key_to_json(key)
         self._call('DELETE', '/user/ssh-key', params=params, data=data)
 
