@@ -119,7 +119,7 @@ class Config:
 
     def __enter__(self):
         try:
-            return fa.FruitApi(signer=self.signer(), server=self.server)
+            return fa.FruitUserApi(signer=self.signer(), server=self.server)
         except fa.FruitApiError as exn:
             self.print_pretty_summary(sys.stderr, exn)
             sys.exit(1)

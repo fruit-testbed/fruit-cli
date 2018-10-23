@@ -55,7 +55,7 @@ class FruitApiClientProblem(FruitApiErrorResponse): pass
 class FruitApiServerProblem(FruitApiErrorResponse): pass
 
 
-class FruitApi:
+class BaseFruitApi:
     def __init__(self, signer, server=None):
         '''Construct with the identity you wish to present.'''
         self._server = server or DEFAULT_SERVER
@@ -127,6 +127,8 @@ class FruitApi:
         if node_id is not None: params['id'] = node_id
         return params
 
+
+class FruitUserApi(BaseFruitApi):
     def register(self, email):
         return self._call('POST', '/user/%s' % (email,)).json()
 
