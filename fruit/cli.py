@@ -226,6 +226,10 @@ def print_public_key(config, args):
     print(auth._b64(config.public_key))
 
 
+def print_fresh_token(config, args):
+    print(auth.make_authenticated_identity(config.signer().identity, config.signer()))
+
+
 def delete_account(config, args):
     print()
     print('YOU ARE ABOUT TO DELETE YOUR FRμIT ACCOUNT.')
@@ -518,6 +522,9 @@ def main(argv=sys.argv):
 
     p = ssp.add_parser('public-key', help='Print account public key')
     p.set_defaults(handler=print_public_key)
+
+    p = ssp.add_parser('token', help='Print a fresh authentication token')
+    p.set_defaults(handler=print_fresh_token)
 
     p = ssp.add_parser('delete', help='Delete account',
                        description='''Permanently deletes your
