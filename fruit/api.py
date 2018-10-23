@@ -128,6 +128,36 @@ class BaseFruitApi:
         return params
 
 
+class FruitAdminApi(BaseFruitApi):
+    def list_users(self):
+        return self._call('GET', '/user').json()
+
+    def user_info_by_email(self, email):
+        return self._call('GET', '/user/%s' % (email,)).json()
+
+    def delete_account(self, email):
+        self._call('DELETE', '/user/%s' % (email,))
+
+    def list_nodes(self, filter=None):
+        params = self._starting_params(filter=filter)
+        return self._call('GET', '/node', params=params).json()
+
+    def delete_node(self, node_id):
+        params = self._starting_params()
+        try:
+            self._call('DELETE', '/node/%s' % (node_id,), params=params)
+            return True
+        except FruitApiClientProblem as exn:
+            if exn.response.status_code == 404:
+                return False
+            else:
+                raise
+
+    def get_monitoring_data(self, filter=None, node_id=None):
+        params = self._starting_params(filter=filter, node_id=node_id)
+        return self._call('GET', '/monitor', params).json()
+
+
 class FruitUserApi(BaseFruitApi):
     def register(self, email):
         return self._call('POST', '/user/%s' % (email,)).json()

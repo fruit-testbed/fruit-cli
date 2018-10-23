@@ -22,6 +22,7 @@ import fruit.auth.signify_key as signify_key
 
 FRUIT_CLI_CONFIG_VAR = 'FRUIT_CLI_CONFIG'
 FRUIT_API_SERVER_VAR = 'FRUIT_API_SERVER'
+DEFAULT_IDENTITY = 'default'
 
 
 def _get_passphrase(source):
@@ -34,6 +35,11 @@ class Config:
         self.public_key = None
         self.secret_key = None
         self.email = None
+        self.identities = None
+        self.identityName = None
+        self.default_identity = DEFAULT_IDENTITY
+        self.apiClass = fa.FruitUserApi
+        self._signer = None
 
     def load(self, filename):
         if os.path.exists(filename):
@@ -43,24 +49,54 @@ class Config:
             blob = {}
 
         if 'server' in blob: self.server = blob['server']
+        self.default_identity = blob.get('default_identity', DEFAULT_IDENTITY)
 
-        self.email = blob.get('email', None)
+        self.identities = blob.get('identities', None)
 
+    def _load_identity(self, blob):
         self.public_key = blob.get('public-key', None)
         if self.public_key is not None:
             self.public_key = auth._unb64(self.public_key)
-
         self.secret_key_blob = blob.get('secret-key', None)
         self.secret_key_path = blob.get('secret-key-file', None)
+        self.email = blob.get('email', None)
         self._signer = None
+
+    def load_identity(self, newIdentity):
+        self.identityName = newIdentity
+        if self.identityName in (self.identities or {}):
+            self._load_identity(self.identities[self.identityName])
+
+    def _store_identity(self, blob):
+        if self.identities is None:
+            self.identities = {}
+        if blob is None:
+            if self.identityName in self.identities:
+                del self.identities[self.identityName]
+        else:
+            self.identities[self.identityName] = blob
+        if not self.identities:
+            self.identities = None
+
+    def store_identity(self):
+        idblob = {}
+        if self.email: idblob['email'] = self.email
+        if self.public_key: idblob['public-key'] = auth._b64(self.public_key)
+        if self.secret_key_blob: idblob['secret-key'] = self.secret_key_blob
+        if self.secret_key_path: idblob['secret-key-file'] = self.secret_key_path
+        self._store_identity(idblob)
+
+    def select_api(self, apiClass):
+        self.apiClass = apiClass
 
     def to_json(self):
         blob = {}
-        if self.server != fa.DEFAULT_SERVER: blob['server'] = self.server
-        if self.email: blob['email'] = self.email
-        if self.public_key: blob['public-key'] = auth._b64(self.public_key)
-        if self.secret_key_blob: blob['secret-key'] = self.secret_key_blob
-        if self.secret_key_path: blob['secret-key-file'] = self.secret_key_path
+        if self.server != fa.DEFAULT_SERVER:
+            blob['server'] = self.server
+        if self.default_identity != DEFAULT_IDENTITY:
+            blob['default_identity'] = self.default_identity
+        if self.identities:
+            blob['identities'] = self.identities
         return blob
 
     def dump(self, filename):
@@ -118,19 +154,10 @@ class Config:
         return self._signer
 
     def __enter__(self):
-        try:
-            return fa.FruitUserApi(signer=self.signer(), server=self.server)
-        except fa.FruitApiError as exn:
-            self.print_pretty_summary(sys.stderr, exn)
-            sys.exit(1)
+        return self.apiClass(signer=self.signer(), server=self.server)
 
     def __exit__(self, type, exn, tb):
-        if exn is not None:
-            if isinstance(exn, fa.FruitApiError):
-                self.print_pretty_summary(sys.stderr, exn)
-                sys.exit(1)
-            else:
-                raise
+        pass
 
     def print_pretty_summary(self, fh, exn):
         if isinstance(exn, fa.FruitApiErrorResponse):
@@ -161,26 +188,24 @@ def config_filename():
 
 
 def register(config, args):
-    try:
-        if config.email is None:
-            config.email = args.email
-        if config.email != args.email:
-            raise fa.FruitApiError('Configuration file already contains a different email address')
-        config.secret_key_blob = args.secret_key or None
-        path = args.secret_key_file
-        if path:
-            if path[:1] != '~':
-                path = os.path.abspath(path)
-            config.secret_key_path = path
-        else:
-            config.secret_key_path = None
-    except fa.FruitApiError as exn:
-        config.print_pretty_summary(sys.stderr, exn)
-        sys.exit(1)
+    if config.email is None:
+        config.email = args.email
+    if config.email != args.email:
+        raise fa.FruitApiError('Configuration file already contains a different email address')
+    config.secret_key_blob = args.secret_key or None
+    path = args.secret_key_file
+    if path:
+        if path[:1] != '~':
+            path = os.path.abspath(path)
+        config.secret_key_path = path
+    else:
+        config.secret_key_path = None
+
     with config as api:
         api.register(config.email)
         print('A verification email has been sent to %s.' % (args.email,))
         print('Please check your mailbox and follow the instructions.')
+        config.store_identity()
         config.dump(args.config_filename)
 
 
@@ -194,6 +219,11 @@ def _pp_yaml(args, blob):
 
 def print_config(config, args):
     _pp_yaml(args, config.to_json())
+
+
+def print_public_key(config, args):
+    config.signer() ## load the key
+    print(auth._b64(config.public_key))
 
 
 def delete_account(config, args):
@@ -225,6 +255,7 @@ def delete_account(config, args):
         config.public_key = None
         config.secret_key_blob = None
         config.secret_key_path = None
+        config.store_identity()
         config.dump(args.config_filename)
 
 
@@ -359,16 +390,40 @@ def delete_ssh_key(config, args):
             api.delete_ssh_key(key, filter=_parse_filter(args), node_id=args.node)
 
 
-def authorized_keys(config, args):
+def admin_list_users(config, args):
+    config.select_api(fa.FruitAdminApi)
     with config as api:
-        ## TODO: once we move to public-keys, this will have to change
-        ## because we won't have the node's private key. Instead, a
-        ## new API will be needed for a user to get *exactly* the set
-        ## of SSH keys deployed to a particular node. One way to go
-        ## about that would be to include global SSH keys in the
-        ## list_ssh_keys output, alongside the user and node/group
-        ## keys.
-        sys.stdout.buffer.write(api.authorized_keys(args.node))
+        _pp_yaml(args, api.list_users())
+
+
+def admin_user_info_by_email(config, args):
+    config.select_api(fa.FruitAdminApi)
+    with config as api:
+        _pp_yaml(args, api.user_info_by_email(args.email))
+
+
+def admin_delete_account(config, args):
+    config.select_api(fa.FruitAdminApi)
+    with config as api:
+        _pp_yaml(args, api.delete_account(args.email))
+
+
+def admin_list_nodes(config, args):
+    config.select_api(fa.FruitAdminApi)
+    with config as api:
+        _pp_yaml(args, api.list_nodes(filter=_parse_filter(args)))
+
+
+def admin_monitor(config, args):
+    config.select_api(fa.FruitAdminApi)
+    with config as api:
+        _pp_yaml(args, api.get_monitoring_data(filter=_parse_filter(args), node_id=args.node))
+
+
+def admin_reset_node(config, args):
+    config.select_api(fa.FruitAdminApi)
+    with config as api:
+        api.delete_node(args.node)
 
 
 def _add_help_to(p, sp):
@@ -418,6 +473,8 @@ def main(argv=sys.argv):
     parser.add_argument('--json', action='store_true',
                         default=False,
                         help='Produce output in JSON instead of YAML')
+    parser.add_argument('--identity', type=str,
+                        help='Select an alternate identity to use when authenticating with the server')
     parser.set_defaults(handler=lambda config, args: parser.print_help())
 
     sp = parser.add_subparsers()
@@ -458,6 +515,9 @@ def main(argv=sys.argv):
 
     p = ssp.add_parser('config', help='Print current configuration settings')
     p.set_defaults(handler=print_config)
+
+    p = ssp.add_parser('public-key', help='Print account public key')
+    p.set_defaults(handler=print_public_key)
 
     p = ssp.add_parser('delete', help='Delete account',
                        description='''Permanently deletes your
@@ -551,14 +611,62 @@ def main(argv=sys.argv):
     g = _add_ssh_key_arguments(p)
     p.set_defaults(handler=delete_ssh_key)
 
-    p = ssp.add_parser('authorized_keys', help='Retrieve the authorized_keys file for a given node')
-    p.add_argument('node', type=str,
-                   help="Specify which node's authorized_keys file to retrieve by node ID")
-    p.set_defaults(handler=authorized_keys)
+    #------------------------------------------------------------------------
+
+    p = sp.add_parser('admin', help='Actions for installation administrators')
+    admin_p = p
+    p.set_defaults(handler=lambda config, args: admin_p.print_help())
+    ssp = p.add_subparsers()
+    _add_help_to(p, ssp)
+
+    p = ssp.add_parser('account', help='Installation-wide account management')
+    admin_account_p = p
+    p.set_defaults(handler=lambda config, args: admin_account_p.print_help())
+    sssp = p.add_subparsers()
+    _add_help_to(p, sssp)
+
+    p = sssp.add_parser('list', help='List all user accounts')
+    p.set_defaults(handler=admin_list_users)
+
+    p = sssp.add_parser('info', help='Retrieve information on a specific user account')
+    p.add_argument('email', type=str,
+                   help='Specify the email address of the user account to retrieve')
+    p.set_defaults(handler=admin_user_info_by_email)
+
+    p = sssp.add_parser('delete', help='Delete a user account',
+                        description='''Permanently deletes a specified
+                        account, its nodes, and all its configuration
+                        and settings.''')
+    p.add_argument('email', type=str,
+                   help='Specify the email address of the user account to delete')
+    p.set_defaults(handler=admin_delete_account)
+
+    p = ssp.add_parser('node', help='Installation-wide node management')
+    admin_node_p = p
+    p.set_defaults(handler=lambda config, args: admin_node_p.print_help())
+    sssp = p.add_subparsers()
+    _add_help_to(p, sssp)
+
+    p = sssp.add_parser('list', help='List (all or some) nodes',
+                        description='''Prints a YAML summary of nodes to stdout.''' + FILTER_HELP)
+    _add_filter_argument(p)
+    p.set_defaults(handler=admin_list_nodes)
+
+    p = sssp.add_parser('monitor', help='Installation-wide monitoring data',
+                        description='''Prints a YAML summary of monitoring data from nodes to
+                        stdout.''' + FILTER_HELP + NODE_HELP)
+    _add_node_filter_arguments(p)
+    p.set_defaults(handler=admin_monitor)
+
+    p = sssp.add_parser('reset', help='Deregister and reset a specific node',
+                        description='''Deletes all records associated with a specific node.''')
+    p.add_argument('node', type=str, help="Specify the ID of the node to reset")
+    p.set_defaults(handler=admin_reset_node)
 
     #------------------------------------------------------------------------
 
     args = parser.parse_args(argv)
+
     config = Config()
     config.load(args.config_filename)
 
@@ -569,7 +677,12 @@ def main(argv=sys.argv):
     # for a in args.__dict__.items():
     #     print(a)
 
-    args.handler(config, args)
+    try:
+        config.load_identity(args.identity or config.default_identity)
+        args.handler(config, args)
+    except fa.FruitApiError as exn:
+        config.print_pretty_summary(sys.stderr, exn)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
