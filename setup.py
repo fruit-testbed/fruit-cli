@@ -7,7 +7,7 @@ except ImportError:
 
 setup(
     name="fruit-cli",
-    version="0.6.0",
+    version="0.6.1",
     author="FRμIT Developers",
     author_email="tony.garnock-jones@glasgow.ac.uk",
     license="Creative Commons Attribution-ShareAlike 4.0 International Public",
@@ -26,7 +26,7 @@ setup(
     ],
     keywords="fruit-cli",
     platforms="any",
-    packages=["fruit"],
+    packages=["fruit", "fruit.auth"],
     url="https://github.com/fruit-testbed/fruit-cli/",
     description="Command-line application plus API client for FRμIT cluster management",
     install_requires=[
