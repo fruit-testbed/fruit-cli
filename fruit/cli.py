@@ -31,7 +31,7 @@ def _get_passphrase(source):
 
 class Config:
     def __init__(self):
-        self.server = None
+        self.server = os.environ.get(FRUIT_API_SERVER_VAR, fa.DEFAULT_SERVER)
         self.public_key = None
         self.secret_key = None
         self.email = None
@@ -83,6 +83,7 @@ class Config:
         if self.public_key: idblob['public-key'] = auth._b64(self.public_key)
         if self.secret_key_blob: idblob['secret-key'] = self.secret_key_blob
         if self.secret_key_path: idblob['secret-key-file'] = self.secret_key_path
+        if self.server != fa.DEFAULT_SERVER: idblob['server'] = self.server
         self._store_identity(idblob)
 
     def select_api(self, apiClass):
@@ -90,8 +91,6 @@ class Config:
 
     def to_json(self):
         blob = {}
-        if self.server != fa.DEFAULT_SERVER:
-            blob['server'] = self.server
         if self.default_identity != DEFAULT_IDENTITY:
             blob['default_identity'] = self.default_identity
         if self.identities:
