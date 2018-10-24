@@ -31,7 +31,7 @@ def _get_passphrase(source):
 
 class Config:
     def __init__(self):
-        self.server = os.environ.get(FRUIT_API_SERVER_VAR, fa.DEFAULT_SERVER)
+        self.server = None
         self.public_key = None
         self.secret_key = None
         self.email = None
@@ -48,12 +48,11 @@ class Config:
         else:
             blob = {}
 
-        if 'server' in blob: self.server = blob['server']
         self.default_identity = blob.get('default_identity', DEFAULT_IDENTITY)
-
         self.identities = blob.get('identities', None)
 
     def _load_identity(self, blob):
+        self.server = blob.get('server', os.environ.get(FRUIT_API_SERVER_VAR, fa.DEFAULT_SERVER))
         self.public_key = blob.get('public-key', None)
         if self.public_key is not None:
             self.public_key = auth._unb64(self.public_key)

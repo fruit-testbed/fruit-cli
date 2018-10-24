@@ -114,74 +114,93 @@ should successfully produce the empty list as output.
 
 The default path for the `fruit-cli` configuration file is
 `~/.fruit-cli`. It is a YAML file which holds the login information to
-access the FRμIT management API. It has two mandatory fields:
+access the FRμIT management API.
 
-- `email`, the user's email address (e.g. `foo@bar.com`).
-- `public-key`, a base64-encoded Ed25519 public key identifying the user.
+It has two fields:
 
-It also has one of two possible fields specifying the secret key
-corresponding to the user's public key, depending on the way the
-account was initially configured:
+- `default_identity` names the identity that `fruit-cli` will use
+  unless overridden with the `--identity` command-line argument. It
+  defaults to `default`.
 
-- `secret-key` may contain either
-    - an unprotected, base64-encoded, raw Ed25519 secret key; or
-    - the contents of an SSH private key file; or
-    - the contents of an
-      [OpenBSD signify][signify]
-      secret key file
-- `secret-key-file` may contain a path to
-    - an SSH or private key file containing an Ed25519 key
-    - an OpenBSD signify secret key file
+- `identities` is a dictionary, with each key naming an identity
+  available to the user of `fruit-cli`. Each identity must itself be a
+  dictionary, with two mandatory fields:
+
+   - `email`, the account's email address (e.g. `foo@bar.com`).
+   - `public-key`, a base64-encoded Ed25519 public key identifying the account.
+
+  Each identity also must have one of two possible fields specifying
+  the secret key corresponding to the account's public key, depending
+  on the way the account was initially configured:
+
+   - `secret-key` may contain either
+       - an unprotected, base64-encoded, raw Ed25519 secret key; or
+       - the contents of an SSH private key file; or
+       - the contents of an
+         [OpenBSD signify][signify]
+         secret key file
+   - `secret-key-file` may contain a path to
+       - an SSH or private key file containing an Ed25519 key
+       - an OpenBSD signify secret key file
+
+  Finally, there is one optional identity field:
+
+   - `server`, which overrides the management server API endpoint to
+     use (default: `https://fruit-testbed.org/api`).
 
 If an SSH private key is used and `SSH_AUTH_SOCK` is correctly set,
 `fruit-cli` will use the SSH agent protocol to avoid needing to access
 the decrypted SSH private key directly.
 
-Finally, there is one optional field:
-
-- `server`, the management server's endpoint (default: `https://fruit-testbed.org/api`).
-
 Example:
 
-0. With SSH private key embedded in `.fruit-cli`:
+1. With SSH private key embedded in `.fruit-cli`:
 
    ```yaml
-   email: foo@bar.com
-   public-key: Kr7zLRszjeJIFugU4emg3cRRkqwThzdWtdFgTNfWkwc=
-   secret-key: |
-     -----BEGIN OPENSSH PRIVATE KEY-----
-     b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
-     QyNTUxOQAAACAqvvMtGzON4kgW6BTh6aDdxFGSrBOHN1a10WBM19aTBwAAAJiF9PaZhfT2
-     mQAAAAtzc2gtZWQyNTUxOQAAACAqvvMtGzON4kgW6BTh6aDdxFGSrBOHN1a10WBM19aTBw
-     AAAEDXtEIQ3vT45HKCYAgdQsldEZCgd3LsKlGoaaWzAxLQCyq+8y0bM43iSBboFOHpoN3E
-     UZKsE4c3VrXRYEzX1pMHAAAADnRlc3RrZXktbm9wYXNzAQIDBAUGBw==
-     -----END OPENSSH PRIVATE KEY-----
+   identities:
+     default:
+       email: foo@bar.com
+       public-key: Kr7zLRszjeJIFugU4emg3cRRkqwThzdWtdFgTNfWkwc=
+       secret-key: |
+         -----BEGIN OPENSSH PRIVATE KEY-----
+         b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+         QyNTUxOQAAACAqvvMtGzON4kgW6BTh6aDdxFGSrBOHN1a10WBM19aTBwAAAJiF9PaZhfT2
+         mQAAAAtzc2gtZWQyNTUxOQAAACAqvvMtGzON4kgW6BTh6aDdxFGSrBOHN1a10WBM19aTBw
+         AAAEDXtEIQ3vT45HKCYAgdQsldEZCgd3LsKlGoaaWzAxLQCyq+8y0bM43iSBboFOHpoN3E
+         UZKsE4c3VrXRYEzX1pMHAAAADnRlc3RrZXktbm9wYXNzAQIDBAUGBw==
+         -----END OPENSSH PRIVATE KEY-----
    ```
 
-0. With SSH private key in the user's `~/.ssh/id_ed25519` file:
+1. With SSH private key in the user's `~/.ssh/id_ed25519` file:
 
    ```yaml
-   email: foo@bar.com
-   public-key: Kr7zLRszjeJIFugU4emg3cRRkqwThzdWtdFgTNfWkwc=
-   secret-key-file: ~/.ssh/id_ed25519
+   identities:
+     default:
+       email: foo@bar.com
+       public-key: Kr7zLRszjeJIFugU4emg3cRRkqwThzdWtdFgTNfWkwc=
+       secret-key-file: ~/.ssh/id_ed25519
    ```
 
-0. With signify secret key embedded in `.fruit-cli`:
+1. With signify secret key embedded in `.fruit-cli`:
 
    ```yaml
-   email: foo@bar.com
-   public-key: Q0VY79+tjrd7liUgd+gNPIwgKjEj9htLoTCrKK2ticU=
-   secret-key: |
-     untrusted comment: signify secret key
-     RWRCSwAAACr9As6kyntYZy64Ox6oyZxobHMbQBnRtZ+LuLux29x42u7NpUwzrJDA6Gq0PQOd6MaKPEzL0+RZWjao1EIXn6vKk1QoaMythTS6X2W0ZU21q4D6x/4d60JfbQr5VCU1GaU=
+   identities:
+     default:
+       email: foo@bar.com
+       public-key: Q0VY79+tjrd7liUgd+gNPIwgKjEj9htLoTCrKK2ticU=
+       secret-key: |
+         untrusted comment: signify secret key
+         RWRCSwAAACr9As6kyntYZy64Ox6oyZxobHMbQBnRtZ+LuLux29x42u7NpUwzrJDA6Gq0PQOd6MaKPEzL0+RZWjao1EIXn6vKk1QoaMythTS6X2W0ZU21q4D6x/4d60JfbQr5VCU1GaU=
    ```
 
-0. With signify secret key in `~/.signify.sec`:
+1. With signify secret key in `~/.signify.sec`:
 
    ```yaml
-   email: foo@bar.com
-   public-key: Q0VY79+tjrd7liUgd+gNPIwgKjEj9htLoTCrKK2ticU=
-   secret-key-file: ~/.signify.sec
+   identities:
+     default:
+       email: foo@bar.com
+       public-key: Q0VY79+tjrd7liUgd+gNPIwgKjEj9htLoTCrKK2ticU=
+       secret-key-file: ~/.signify.sec
    ```
 
 ## Examples
@@ -246,58 +265,90 @@ See also the
 ## Command Summary
 
 ```
-usage: fruit-cli [-h] [--config FILENAME] [--json]
-                 {help,account,node,container,key} ...
+usage: fruit-cli [-h] [--config FILENAME] [--json] [--identity IDENTITY]
+                 {help,account,node,container,key,admin} ...
 
-Interface to the FRμIT management server API. Your configuration file
-is [...]. Override its location with the FRUIT_CLI_CONFIG environment
-variable or the --config command-line option.
+Interface to the FRμIT management server API. Your configuration file is
+/home/tonyg/dev/fruit/public/fruit-cli/debug-config-file. Override its
+location with the FRUIT_CLI_CONFIG environment variable or the --config
+command-line option.
 
 positional arguments:
-  {help,account,node,container,key}
+  {help,account,node,container,key,admin}
     help                Print help
     account             Account management
     node                Node management
     container           Container management
     key                 SSH key management
+    admin               Actions for installation administrators
 
 optional arguments:
   -h, --help            show this help message and exit
   --config FILENAME, -c FILENAME
                         Supply an alternate configuration file
   --json                Produce output in JSON instead of YAML
+  --identity IDENTITY   Select an alternate identity to use when
+                        authenticating with the server
 ```
 
 ### Limiting commands to selected nodes or node groups
 
-Many of the subcommands below accept `--group` and/or `--node`
+Many of the subcommands below accept `--filter` and/or `--node`
 arguments, which select a subset of the user's registered nodes.
-
-If option `--group <hostname>` is given, the selected action will only
-include nodes whose hostname is equal to `<hostname>`. Wildcard `*` is
-available in `--group`; for example:
-
-```shell
-fruit-cli node list --name gms*
-```
 
 If option `--node <nodeid>` is given, the selected action will only
 include the node with the given ID.
 
-If both options are given, the logical AND of the two applies: only if
-the named node ID is within the named group (or group pattern) will it
-be selected.
+The option `--filter <jsonpointer> <operator> <value>` limits the
+nodes selected to those matching the filter. The option can be
+repeated to further narrow down the selection.
+
+ - Every node has some JSON data associated with it. For example,
+   uploaded monitoring statistics appear under key `"monitor"`. The
+   `jsonpointer` (see
+   [RFC 6901, "JavaScript Object Notation (JSON) Pointer"](https://tools.ietf.org/html/rfc6901))
+   names a portion of this JSON data to examine. For example, the
+   pointer `/monitor/os/hostname` retrieves the hostname uploaded by a
+   node as part of its monitoring data.
+
+ - The operator may be one of `=`, `<`, `>` or `glob`.
+
+ - The `value` must be a JSON term, unless the operator is `glob`, in
+   which case it is simple text with embedded `*` wildcards.
+
+For example,
+
+    fruit-cli node list --filter /monitor/os/hostname = '"pi4440302f"'
+
+will list nodes who believe their hostname to be `pi4440302f`. Note
+the use of single-quotes to protect the JSON string `"pi4440302f"`
+from the shell.
+
+As another example,
+
+    fruit-cli node list --filter /monitor/os/hostname glob 'pi44*'
+
+will list nodes who believe their hostname to be a string starting
+with `pi44`. Note the use of single-quotes to protect the embedded
+wildcard from the shell.
+
+If a `--node` option and some `--filter` options are given, the
+logical AND of them all applies: only if the named node ID is within
+the filtered group will it be selected.
 
 ### Account commands
 
 ```
-usage: fruit-cli account [-h] {help,register,config,delete} ...
+usage: fruit-cli account [-h]
+                         {help,register,config,public-key,token,delete} ...
 
 positional arguments:
-  {help,register,config,delete}
+  {help,register,config,public-key,token,delete}
     help                Print help
     register            Register a new account
     config              Print current configuration settings
+    public-key          Print account public key
+    token               Print a fresh authentication token
     delete              Delete account
 
 optional arguments:
@@ -351,16 +402,33 @@ Nodes may be accessed via SSH. These commands manipulate SSH keys
 allowed to access a user's nodes.
 
 ```
-usage: fruit-cli key [-h] {help,add,list,remove,authorized_keys} ...
+usage: fruit-cli key [-h] {help,add,list,remove} ...
 
 positional arguments:
-  {help,add,list,remove,authorized_keys}
+  {help,add,list,remove}
     help                Print help
     add                 Grant SSH key access to nodes
     list                List SSH keys with access to nodes
     remove              Delete SSH keys having access to nodes
-    authorized_keys     Retrieve the authorized_keys file for a given node
 
 optional arguments:
   -h, --help            show this help message and exit
 ```
+
+### Admin commands
+
+Administrators of the management system may access these functions.
+
+```
+usage: fruit-cli admin [-h] {help,account,node} ...
+
+positional arguments:
+  {help,account,node}
+    help               Print help
+    account            Installation-wide account management
+    node               Installation-wide node management
+
+optional arguments:
+  -h, --help           show this help message and exit
+```
+
