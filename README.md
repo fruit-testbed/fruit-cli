@@ -119,8 +119,8 @@ access the FRμIT management API.
 It has two fields:
 
 - `default_identity` names the identity that `fruit-cli` will use
-  unless overridden with the `--identity` command-line argument. It
-  defaults to `default`.
+  unless overridden with the `--identity` command-line argument. If
+  this field is not defined, then it is implicitly set to `default`.
 
 - `identities` is a dictionary, with each key naming an identity
   available to the user of `fruit-cli`. Each identity must itself be a
