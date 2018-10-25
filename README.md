@@ -96,7 +96,7 @@ account with the server.
 
 Use the `fruit-cli account register` command, supplying the path to
 your SSH or signify secret key using the `-f` option, and also
-supplying an email address that you have access to.
+supplying an email address that you have access to, e.g. `fruit-cli account register user@test.org -f ssh-key-for-fruit`
 
 ### Step 3: Click the verification link
 
