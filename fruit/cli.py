@@ -229,6 +229,16 @@ def print_fresh_token(config, args):
 
 
 def delete_account(config, args):
+    # Ugh, python3 renamed python2's `raw_input` to `input`, clashing
+    # thereby with python2's `input`, which does something similar but
+    # hideously misguided. Here we ask for `raw_input` if it's present
+    # (i.e. python2), falling back to whatever `input` is bound to
+    # otherwise.
+    try:
+        read_line_with_prompt = raw_input
+    except NameError:
+        read_line_with_prompt = input
+
     print()
     print('YOU ARE ABOUT TO DELETE YOUR FRμIT ACCOUNT.')
     print()
@@ -240,13 +250,13 @@ def delete_account(config, args):
     print()
     print('THIS IS PERMANENT. THERE IS NO WAY TO UNDO THIS.')
     print()
-    entered_email = raw_input("Type your account's email address to confirm deletion: ")
+    entered_email = read_line_with_prompt("Type your account's email address to confirm deletion: ")
     if entered_email != config.email:
         print("Email address does not match.")
         sys.exit(1)
 
     print()
-    if raw_input("Last chance! Enter 'YES' to delete your account: ") != 'YES':
+    if read_line_with_prompt("Last chance! Enter 'YES' to delete your account: ") != 'YES':
         print("Cancelling.")
         sys.exit(1)
     with config as api:
