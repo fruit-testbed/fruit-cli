@@ -13,6 +13,9 @@ import re
 import yaml
 import io
 import getpass
+import pkg_resources
+
+VERSION = repr(pkg_resources.require('fruit-cli')[0])
 
 import fruit.api as fa
 import fruit.auth as auth
@@ -493,6 +496,7 @@ def main(argv=sys.argv):
                         help='Produce output in JSON instead of YAML')
     parser.add_argument('--identity', type=str,
                         help='Select an alternate identity to use when authenticating with the server')
+    parser.add_argument('--version', action='version', version=VERSION)
     parser.set_defaults(handler=lambda config, args: parser.print_help())
 
     sp = parser.add_subparsers()
