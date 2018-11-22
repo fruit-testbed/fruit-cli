@@ -40,13 +40,16 @@ class Config:
         self.default_identity = DEFAULT_IDENTITY
         self.apiClass = fa.FruitUserApi
         self._signer = None
+        self._filename = None
 
     def load(self, filename):
         if os.path.exists(filename):
             with open(filename) as f:
                 blob = yaml.safe_load(f) or {}
+                self._filename = filename
         else:
             blob = {}
+            self._filename = None
 
         self.default_identity = blob.get('default_identity', DEFAULT_IDENTITY)
         self.identities = blob.get('identities', None)
@@ -147,6 +150,9 @@ class Config:
             self._signer = self.__signer()
             if self.public_key is None:
                 self.public_key = self._signer.identity
+                self.store_identity()
+                if self._filename:
+                    self.dump(self._filename)
             elif self.public_key != self._signer.identity:
                 raise fa.FruitApiError('Mismatch between public key and secret key')
         return self._signer
