@@ -315,6 +315,11 @@ def reset_node(config, args):
         api.delete_node(args.node)
 
 
+def list_filter_paths(config, args):
+    with config as api:
+        _pp_yaml(args, api.list_filter_paths())
+
+
 def run_container(config, args):
     with config as api:
         spec = fa.ContainerSpec(args.name,
@@ -505,7 +510,8 @@ def main(argv=sys.argv):
     Each PATH is a JSON-pointer path. OP may be any of "=", "<", ">"
     or "glob". VALUE must be a string representation of a JSON value
     whenever OP is not "glob", or a shell-glob-style pattern when OP
-    is "glob".'''
+    is "glob". Use `fruit-cli node filter-paths` to list the PATHs
+    currently in the database and available to you.'''
     NODE_HELP = ''' If --node is supplied, includes only the node with the given
     identifier key (or nothing at all, if that node's attributes do
     not match selected `--filter`s).'''
@@ -574,6 +580,10 @@ def main(argv=sys.argv):
                        description='''Deletes all records associated with a specific node.''')
     p.add_argument('node', type=str, help="Specify the ID of the node to reset")
     p.set_defaults(handler=reset_node)
+
+    p = ssp.add_parser('filter-paths', help='List currently-active filter JSON-pointer paths',
+                       description='''For use in constructing `node list` and `monitor` filter clauses.''')
+    p.set_defaults(handler=list_filter_paths)
 
     #------------------------------------------------------------------------
 

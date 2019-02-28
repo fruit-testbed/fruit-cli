@@ -127,6 +127,9 @@ class BaseFruitApi:
         if node_id is not None: params['id'] = node_id
         return params
 
+    def list_filter_paths(self):
+        return self._call('GET', '/meta/filter_paths').json()
+
 
 class FruitAdminApi(BaseFruitApi):
     def list_users(self):
