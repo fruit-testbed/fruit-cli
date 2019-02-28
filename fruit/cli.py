@@ -291,7 +291,7 @@ def _parse_filter(args):
     def decode_json(p,v):
         try:
             return json.loads(v)
-        except json.JSONDecodeError:
+        except:
             raise fa.FruitApiError(
                 'Invalid filter clause JSON comparison value %r for path %r' % (v, p))
     return [(p,o,v if o == 'glob' else decode_json(p,v)) for (p,o,v) in raw_filter]
