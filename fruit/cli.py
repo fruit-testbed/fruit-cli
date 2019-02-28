@@ -503,8 +503,9 @@ def main(argv=sys.argv):
 
     FILTER_HELP = ''' The --filter PATH OP VALUE command may be supplied multiple times.
     Each PATH is a JSON-pointer path. OP may be any of "=", "<", ">"
-    or "glob". VALUE must be a string representation of a JSON
-    value.'''
+    or "glob". VALUE must be a string representation of a JSON value
+    whenever OP is not "glob", or a shell-glob-style pattern when OP
+    is "glob".'''
     NODE_HELP = ''' If --node is supplied, includes only the node with the given
     identifier key (or nothing at all, if that node's attributes do
     not match selected `--filter`s).'''
