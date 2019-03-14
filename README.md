@@ -42,6 +42,8 @@ authenticate users and nodes with the management server.
 
 To register an account, you will need an Ed25519 key.
 
+Alternatively, you can [use an existing account](#using-an-existing-account).
+
 ### Step 1: Generate a key
 
 You can use a new or existing Ed25519
@@ -109,6 +111,24 @@ Running
     fruit-cli node list
 
 should successfully produce the empty list as output.
+
+## Using an existing account
+
+Instead of [registering an account](#registering-an-account), you can
+configure `fruit-cli` to make use of a previously-registered email
+address and Ed25519 key.
+
+Create (or edit) your [configuration file](#config) to contain a
+`default` identity containing the email address and Ed25519 key file
+you used previously to register your account:
+
+    identities:
+      default:
+        email: YOUR@EMAIL.ADDRESS
+        secret-key-file: /PATH/TO/YOUR/ssh-ed25519-private-key-file
+
+See below for more information on the possible contents of the
+configuration file.
 
 ## Config
 
