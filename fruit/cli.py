@@ -46,13 +46,12 @@ class Config:
         self._filename = None
 
     def load(self, filename):
+        self._filename = filename
         if os.path.exists(filename):
             with open(filename) as f:
                 blob = yaml.safe_load(f) or {}
-                self._filename = filename
         else:
             blob = {}
-            self._filename = None
 
         self.default_identity = blob.get('default_identity', DEFAULT_IDENTITY)
         self.identities = blob.get('identities', None)
@@ -69,8 +68,7 @@ class Config:
 
     def load_identity(self, newIdentity):
         self.identityName = newIdentity
-        if self.identityName in (self.identities or {}):
-            self._load_identity(self.identities[self.identityName])
+        self._load_identity((self.identities or {}).get(self.identityName, {}))
 
     def _store_identity(self, blob):
         if self.identities is None:
@@ -112,6 +110,11 @@ class Config:
         blob = self.secret_key_blob
         source = 'secret key'
         if blob is None:
+            if self.secret_key_path is None:
+                raise fa.FruitApiError(
+                    'No secret key is available for identity %r in config file %s' % (
+                        self.identityName,
+                        self._filename))
             with open(os.path.expanduser(self.secret_key_path), 'rt') as fh:
                 blob = fh.read()
                 source = 'secret key from file %r' % (self.secret_key_path,)
