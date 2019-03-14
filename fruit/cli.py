@@ -198,23 +198,37 @@ def config_filename():
 
 
 def register(config, args):
-    if config.email is None:
-        config.email = args.email
-    if config.email != args.email:
-        raise fa.FruitApiError('Configuration file already contains a different email address')
-    config.secret_key_blob = args.secret_key or None
-    path = args.secret_key_file
-    if path:
-        if path[:1] != '~':
-            path = os.path.abspath(path)
-        config.secret_key_path = path
+    if args.email:
+        if config.email is None:
+            config.email = args.email
+        if config.email != args.email:
+            raise fa.FruitApiError('Configuration file already contains a different email address')
+
+    if args.secret_key or args.secret_key_file:
+        config.secret_key_blob = args.secret_key or None
+        path = args.secret_key_file
+        if path:
+            if path[:1] != '~':
+                path = os.path.abspath(path)
+            config.secret_key_path = path
+        else:
+            config.secret_key_path = None
     else:
-        config.secret_key_path = None
+        # Register with existing configured secret key!
+        pass
+
+    if config.email is None:
+        raise fa.FruitApiError('You must supply an email address for account registration.')
+    if config.secret_key_blob is None and config.secret_key_path is None:
+        raise fa.FruitApiError('You must supply a secret key for account registration.')
 
     with config as api:
-        api.register(config.email)
-        print('A verification email has been sent to %s.' % (args.email,))
-        print('Please check your mailbox and follow the instructions.')
+        result = api.register(config.email)
+        if result.get('created', False):
+            print('A verification email has been sent to %s.' % (config.email,))
+            print('Please check your mailbox and follow the instructions.')
+        else:
+            print('The provided secret key is authorized for this account.')
         config.store_identity()
         config.dump(args.config_filename)
 
@@ -229,6 +243,11 @@ def _pp_yaml(args, blob):
 
 def print_config(config, args):
     _pp_yaml(args, config.to_json())
+
+
+def user_account_info(config, args):
+    with config as api:
+        _pp_yaml(args, api.account_info(config.email))
 
 
 def print_public_key(config, args):
@@ -534,19 +553,25 @@ def main(argv=sys.argv):
                        account. You must have access to the email
                        address supplied. The secret key you specify
                        will be used to authenticate you to the
-                       management server.''')
+                       management server. Registration is idempotent.
+                       If omitted, a previously-configured email address
+                       and/or secret key will be used.
+                       ''')
     g = p.add_argument_group('Specifying a secret key to authenticate with')
-    g = g.add_mutually_exclusive_group(required=True)
+    g = g.add_mutually_exclusive_group()
     g.add_argument('--secret-key', metavar='SECRETKEY', type=str,
                    help='Specify a literal SSH, signify, or base64-encoded Ed25519 secret key')
     g.add_argument('--secret-key-file', '-f', metavar='SECRETKEYPATH', type=str,
                    help='Specify a path to a SSH, signify, or base64-encoded Ed25519 secret key')
-    p.add_argument('email', type=str,
+    p.add_argument('email', type=str, nargs='?',
                    help='Email address of the account to register')
     p.set_defaults(handler=register)
 
     p = ssp.add_parser('config', help='Print current configuration settings')
     p.set_defaults(handler=print_config)
+
+    p = ssp.add_parser('info', help='Retrieve server-side account information')
+    p.set_defaults(handler=user_account_info)
 
     p = ssp.add_parser('public-key', help='Print account public key')
     p.set_defaults(handler=print_public_key)

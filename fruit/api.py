@@ -163,7 +163,25 @@ class FruitAdminApi(BaseFruitApi):
 
 class FruitUserApi(BaseFruitApi):
     def register(self, email):
-        return self._call('POST', '/user/%s' % (email,)).json()
+        try:
+            return self._call('POST', '/user/%s' % (email,)).json()
+        except FruitApiClientProblem as exn:
+            if exn.response.status_code == 409:
+                # Conflict, i.e. already registered!
+                # Check to see if we can authenticate as this user.
+                try:
+                    return self.account_info(email)
+                except FruitApiClientProblem as exn2:
+                    if exn2.response.status_code == 403:
+                        # Forbidden, so there must be some real conflict.
+                        raise exn # the ORIGINAL "conflict" exception
+                    else:
+                        raise exn2
+            else:
+                raise exn
+
+    def account_info(self, email):
+        return self._call('GET', '/user/%s' % (email,)).json()
 
     def delete_account(self, email):
         self._call('DELETE', '/user/%s' % (email,))
