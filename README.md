@@ -363,10 +363,11 @@ usage: fruit-cli account [-h]
                          {help,register,config,public-key,token,delete} ...
 
 positional arguments:
-  {help,register,config,public-key,token,delete}
+  {help,register,config,info,public-key,token,delete}
     help                Print help
     register            Register a new account
     config              Print current configuration settings
+    info                Retrieve server-side account information
     public-key          Print account public key
     token               Print a fresh authentication token
     delete              Delete account
