@@ -277,8 +277,8 @@ class ContainerSpec:
         if self.command: blob['command'] = self.command
         if self.port: blob['port'] = self.port
         if self.volume: blob['volume'] = self.volume
-        if self.kernel_module: blob['kernel_module'] = self.kernel_module
-        if self.device_tree: blob['device_tree'] = self.device_tree
+        if self.kernel_module: blob['kernel-module'] = self.kernel_module
+        if self.device_tree: blob['device-tree'] = self.device_tree
         if self.device: blob['device'] = self.device
         return blob
 
@@ -289,8 +289,8 @@ class ContainerSpec:
                              blob.get('command', []),
                              blob.get('port', []),
                              blob.get('volume', []),
-                             blob.get('kernel_module', []),
-                             blob.get('device_tree', []),
+                             blob.get('kernel-module', []),
+                             blob.get('device-tree', []),
                              blob.get('device', []))
 
     def __eq__(self, other):
